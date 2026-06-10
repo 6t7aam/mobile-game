@@ -479,21 +479,13 @@ export function drawBuilding(c: SkCanvas, type: BuildingType, level: number, x: 
  * death ends the run, but fits the wilderness-survival setting.
  */
 function drawCampfire(c: SkCanvas, cx: number, cy: number, r: number, level: number, clock: number): void {
-  c.drawOval(Skia.XYWHRect(cx - r * 1.85, cy - r * 0.88, r * 3.7, r * 1.85), setFill(A.shadowSoft, 0.35));
+  // soft charred patch under the fire (the tile beneath is already dirt)
+  c.drawOval(Skia.XYWHRect(cx - r * 1.5, cy - r * 0.7, r * 3, r * 1.5), setFill(C.dirtDark, 0.3));
+  c.drawOval(Skia.XYWHRect(cx - r * 1.1, cy - r * 0.5, r * 2.2, r * 1.05), setFill(A.shadowSoft, 0.3));
 
-  c.drawOval(Skia.XYWHRect(cx - r * 2.15, cy - r * 1.05, r * 4.3, r * 2.25), setFill(C.dirtDark, 0.24));
-  c.drawOval(Skia.XYWHRect(cx - r * 1.9, cy - r * 0.92, r * 3.8, r * 1.92), setFill(C.path, 0.68));
-  c.save();
-  c.translate(cx - r * 1.35, cy + r * 0.82);
-  c.rotate(-12, 0, 0);
-  outlinedRect(c, -r * 0.72, -r * 0.13, r * 1.44, r * 0.26, C.woodSide);
-  c.restore();
-  c.save();
-  c.translate(cx + r * 1.36, cy + r * 0.72);
-  c.rotate(12, 0, 0);
-  outlinedRect(c, -r * 0.72, -r * 0.13, r * 1.44, r * 0.26, C.woodSide);
-  c.restore();
-  outlinedRect(c, cx + r * 1.1, cy - r * 0.88, r * 0.74, r * 0.34, level >= 3 ? C.cloth : C.metalSide);
+  // two cosy sitting logs flanking the fire
+  outlinedRRect(c, cx - r * 2.25, cy + r * 0.4, r * 1.05, r * 0.36, r * 0.18, C.woodSide);
+  outlinedRRect(c, cx + r * 1.2, cy + r * 0.4, r * 1.05, r * 0.36, r * 0.18, C.woodSide);
 
   // lean-to tent appears from level 2 (behind the fire)
   if (level >= 2) {

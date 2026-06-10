@@ -15,9 +15,9 @@ import { useGameStore } from '@/store/gameStore';
 type Props = NativeStackScreenProps<RootStackParamList, 'Arsenal'>;
 
 const BRANCH_LABEL: Record<WeaponBranch, string> = {
-  primitive: 'Примитивное',
-  firearm: 'Огнестрел',
-  heavy: 'Тяжёлое',
+  primitive: '🪓 Примитивное',
+  firearm: '🔫 Огнестрел',
+  heavy: '💣 Тяжёлое',
 };
 
 const BRANCHES: WeaponBranch[] = ['primitive', 'firearm', 'heavy'];
@@ -78,7 +78,13 @@ export function ArsenalScreen({ navigation }: Props) {
           const branchLocked = !mods.unlockedBranches.has(branch);
           return (
           <View key={branch} style={styles.branch}>
-            <Text style={styles.branchTitle}>{BRANCH_LABEL[branch]}</Text>
+            <View style={styles.branchHeader}>
+              <Text style={styles.branchTitle}>{BRANCH_LABEL[branch]}</Text>
+              <Text style={styles.branchCount}>
+                {WEAPON_LIST.filter((w) => w.branch === branch && ownsId(w.id)).length}/
+                {WEAPON_LIST.filter((w) => w.branch === branch).length}
+              </Text>
+            </View>
             {branchLocked && (
               <Text style={styles.branchLockNote}>
                 🔒 Ветка закрыта — изучите «{BRANCH_RESEARCH[branch]}» в Дереве Технологий
@@ -100,6 +106,7 @@ export function ArsenalScreen({ navigation }: Props) {
                   <View style={styles.weaponText}>
                     <View style={styles.nameRow}>
                       <Text style={styles.weaponName}>{w.name}</Text>
+                      {isEquipped && <Text style={styles.equippedBadge}>В РУКАХ</Text>}
                       {isOwned && (
                         <View style={styles.pips}>
                           {Array.from({ length: w.maxLevel }).map((_, i) => (
@@ -111,11 +118,14 @@ export function ArsenalScreen({ navigation }: Props) {
                         </View>
                       )}
                     </View>
-                    <Text style={styles.weaponStat}>
-                      урон {Math.round(isOwned ? stats.damage : w.damage)}
-                      {nextStats && ` → ${Math.round(nextStats.damage)}`} · темп {w.fireRate}/с ·
-                      дальн. {w.range}
-                    </Text>
+                    <View style={styles.statRow}>
+                      <Text style={styles.statChip}>
+                        💥 {Math.round(isOwned ? stats.damage : w.damage)}
+                        {nextStats && ` → ${Math.round(nextStats.damage)}`}
+                      </Text>
+                      <Text style={styles.statChip}>⏱ {w.fireRate}/с</Text>
+                      <Text style={styles.statChip}>📏 {w.range}</Text>
+                    </View>
                     <Text style={styles.ability}>⚡ {w.ability.name}: {w.ability.description}</Text>
                     {isOwned && !maxed && upCost && (
                       <Text style={styles.upCost}>Улучшение: {costLabel(upCost)}</Text>
@@ -183,11 +193,38 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     padding: 12,
     backgroundColor: COLORS.panel,
-    borderLeftWidth: 3,
+    borderWidth: 1,
+    borderColor: COLORS.panelBorder,
+    borderLeftWidth: 4,
     borderLeftColor: COLORS.inactive,
+    borderRadius: 10,
     gap: 12,
   },
-  weaponEquipped: { borderLeftColor: COLORS.accent },
+  weaponEquipped: { borderLeftColor: COLORS.accent, borderColor: COLORS.accent },
+  equippedBadge: {
+    fontFamily: FONTS.heading,
+    color: COLORS.background,
+    backgroundColor: COLORS.accent,
+    fontSize: 9,
+    letterSpacing: 1,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+    overflow: 'hidden',
+  },
+  branchHeader: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between' },
+  branchCount: { fontFamily: FONTS.heading, color: COLORS.resource, fontSize: 14 },
+  statRow: { flexDirection: 'row', gap: 6, marginTop: 4, flexWrap: 'wrap' },
+  statChip: {
+    fontFamily: FONTS.body,
+    color: COLORS.text,
+    fontSize: 12,
+    backgroundColor: COLORS.background,
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 6,
+    overflow: 'hidden',
+  },
   weaponText: { flex: 1 },
   nameRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   weaponName: { fontFamily: FONTS.body, color: COLORS.text, fontSize: 15 },
@@ -200,7 +237,6 @@ const styles = StyleSheet.create({
     backgroundColor: 'transparent',
   },
   pipOn: { backgroundColor: COLORS.resource, borderColor: COLORS.resource },
-  weaponStat: { fontFamily: FONTS.body, color: COLORS.inactive, fontSize: 13, marginTop: 2 },
   ability: { fontFamily: FONTS.body, color: COLORS.accent, fontSize: 11, marginTop: 3 },
   upCost: { fontFamily: FONTS.body, color: COLORS.resource, fontSize: 12, marginTop: 3 },
   actions: { gap: 6, alignItems: 'stretch', minWidth: 110 },

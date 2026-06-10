@@ -76,9 +76,23 @@ export function ResearchScreen({ navigation }: Props) {
             ⚠ Постройте Совет в лагере, чтобы запускать исследования
           </Text>
         )}
+        {activeResearch && (
+          <View style={styles.activeBanner}>
+            <Text style={styles.activeBannerText}>
+              ⏳ Идёт исследование: {RESEARCH.find((r) => r.id === activeResearch.id)?.name} —
+              осталось {activeResearch.daysLeft} дн.
+            </Text>
+          </View>
+        )}
         {BRANCHES.map((branch) => (
           <View key={branch} style={styles.branch}>
-            <Text style={styles.branchTitle}>{BRANCH_LABEL[branch]}</Text>
+            <View style={styles.branchHeader}>
+              <Text style={styles.branchTitle}>{BRANCH_LABEL[branch]}</Text>
+              <Text style={styles.branchCount}>
+                {RESEARCH.filter((r) => r.branch === branch && completed.includes(r.id)).length}/
+                {RESEARCH.filter((r) => r.branch === branch).length}
+              </Text>
+            </View>
             {RESEARCH.filter((r) => r.branch === branch).map((node) => {
               const done = completed.includes(node.id);
               const available = isAvailable(node.id);
@@ -97,6 +111,15 @@ export function ResearchScreen({ navigation }: Props) {
                       {node.name} {done ? '✓' : ''}
                     </Text>
                     <Text style={styles.nodeDesc}>{node.description}</Text>
+                    {!done && !available && (
+                      <Text style={styles.nodeLockHint}>
+                        🔒 Требуется:{' '}
+                        {node.prerequisites
+                          .filter((pr) => !completed.includes(pr))
+                          .map((pr) => RESEARCH.find((r) => r.id === pr)?.name ?? pr)
+                          .join(', ')}
+                      </Text>
+                    )}
                     {!done && Object.keys(node.cost).length > 0 && (
                       <Text style={[styles.nodeCost, !affordable && styles.nodeCostBad]}>
                         {(Object.entries(node.cost) as [ResourceType, number][])
@@ -152,10 +175,24 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     padding: 12,
     backgroundColor: COLORS.panel,
-    borderLeftWidth: 3,
+    borderWidth: 1,
+    borderColor: COLORS.panelBorder,
+    borderLeftWidth: 4,
     borderLeftColor: COLORS.inactive,
+    borderRadius: 10,
     gap: 12,
   },
+  branchHeader: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between' },
+  branchCount: { fontFamily: FONTS.heading, color: COLORS.resource, fontSize: 14 },
+  activeBanner: {
+    backgroundColor: COLORS.panel,
+    borderWidth: 1,
+    borderColor: COLORS.accent,
+    borderRadius: 10,
+    padding: 10,
+  },
+  activeBannerText: { fontFamily: FONTS.body, color: COLORS.accent, fontSize: 14 },
+  nodeLockHint: { fontFamily: FONTS.body, color: COLORS.inactive, fontSize: 12, marginTop: 3 },
   nodeDone: { borderLeftColor: COLORS.resource, opacity: 0.7 },
   nodeDoctrine: { borderLeftColor: COLORS.accent },
   researching: { fontFamily: FONTS.body, color: COLORS.accent, fontSize: 14 },

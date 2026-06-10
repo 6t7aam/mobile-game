@@ -205,6 +205,8 @@ export function WorldScreen({ navigation }: Props) {
   const [gameOver, setGameOver] = useState<null | { night: number; cause: 'player' | 'shelter' }>(null);
   const [dawnBanner, setDawnBanner] = useState<null | { night: number; killed: number }>(null);
   const [placing, setPlacing] = useState<BuildingType | null>(null);
+  const [buildOpen, setBuildOpen] = useState(false);
+  const [duskBanner, setDuskBanner] = useState(false);
   const [ghost, setGhost] = useState<PlacementGhost | null>(null);
   const [selectedBuildingId, setSelectedBuildingId] = useState<string | null>(null);
   const [tutStep, setTutStep] = useState<TutorialStep>('chop');
@@ -330,7 +332,30 @@ export function WorldScreen({ navigation }: Props) {
     const now = Date.now();
     if (now - harvestCdRef.current < 360) return;
     const { tree, rock } = nearestNode();
-    if (!tree && !rock) return;
+    if (!tree && !rock) {
+      // universal interact: no node nearby → open the closest building's panel
+      const px = sim.player.x;
+      const py = sim.player.y;
+      let best: PlacedBuilding | undefined;
+      let bestD = TILE * 1.8;
+      for (const b of buildingsRef.current) {
+        if (b.type === 'shelter') continue;
+        const def = BUILDINGS[b.type];
+        const bx = (b.origin.col + def.size.w / 2) * TILE;
+        const by = (b.origin.row + def.size.h / 2) * TILE;
+        const d = Math.hypot(px - bx, py - by);
+        if (d < bestD) {
+          bestD = d;
+          best = b;
+        }
+      }
+      if (best) {
+        const id = best.id;
+        setSelectedBuildingId((cur) => (cur === id ? null : id));
+        hapticSelect();
+      }
+      return;
+    }
     harvestCdRef.current = now;
     swingUntilRef.current = now + 280;
 
@@ -341,6 +366,7 @@ export function WorldScreen({ navigation }: Props) {
       const next = startTreeFall(tree.id);
       playSfx('building_hit');
       hapticLight();
+      sim.burstAt(cx, cy - 14, 5, 'debris');
       if (next?.state === 'falling') {
         setTimeout(() => {
           finishTreeFall(tree.id);
@@ -355,6 +381,7 @@ export function WorldScreen({ navigation }: Props) {
       const next = mineRock(rock.id);
       playSfx('building_hit');
       hapticLight();
+      sim.burstAt(cx, cy - 6, 5, 'spark');
       if (next?.state === 'depleted') {
         itemsRef.current.push({
           id: `ore_${rock.id}_${now}`,
@@ -605,6 +632,18 @@ export function WorldScreen({ navigation }: Props) {
 
   const frame = useGameLoop(step, !gameOver);
 
+  // dusk warning banner + auto-close the build panel when darkness falls
+  const phase = sim.phase;
+  useEffect(() => {
+    if (phase !== 'dusk') return;
+    setBuildOpen(false);
+    setDuskBanner(true);
+    hapticMedium();
+    const t = setTimeout(() => setDuskBanner(false), 3500);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phase]);
+
   const restartRun = () => {
     startNewRun();
     resetLayout();
@@ -626,6 +665,28 @@ export function WorldScreen({ navigation }: Props) {
   const isNight = sim.phase === 'night' || sim.phase === 'dusk';
   const carrying = carryingRef.current.wood + carryingRef.current.stone + carryingRef.current.scrap;
   const { tree: nearTree, rock: nearRock } = nearestNode();
+  const hpFrac = sim.player.hp / sim.player.maxHp;
+  // a building close enough for the universal interact button to open
+  const nearBuilding = useMemo(() => {
+    void frame;
+    const px = sim.player.x;
+    const py = sim.player.y;
+    let best: PlacedBuilding | undefined;
+    let bestD = TILE * 1.8;
+    for (const b of buildings) {
+      if (b.type === 'shelter') continue;
+      const def = BUILDINGS[b.type];
+      const bx = (b.origin.col + def.size.w / 2) * TILE;
+      const by = (b.origin.row + def.size.h / 2) * TILE;
+      const d = Math.hypot(px - bx, py - by);
+      if (d < bestD) {
+        bestD = d;
+        best = b;
+      }
+    }
+    return best;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [frame, buildings]);
   const swing = swingUntilRef.current > Date.now() ? (swingUntilRef.current - Date.now()) / 280 : 0;
   const selectedBuilding = selectedBuildingId ? buildings.find((b) => b.id === selectedBuildingId) : null;
   const selectedMaxHp = selectedBuilding
@@ -787,6 +848,18 @@ export function WorldScreen({ navigation }: Props) {
         </View>
 
         <View style={styles.menuButtons} pointerEvents="box-none">
+          {!isNight && (
+            <Pressable
+              style={[styles.menuBtn, buildOpen && styles.menuBtnActive]}
+              onPress={() => {
+                setBuildOpen((o) => !o);
+                hapticSelect();
+              }}
+            >
+              <Text style={styles.menuBtnIcon}>⚒</Text>
+              <Text style={styles.menuBtnLabel}>Строить</Text>
+            </Pressable>
+          )}
           <Pressable style={styles.menuBtn} onPress={() => navigation.navigate('Arsenal')}>
             <Text style={styles.menuBtnIcon}>⚔</Text>
             <Text style={styles.menuBtnLabel}>Оружие</Text>
@@ -829,7 +902,15 @@ export function WorldScreen({ navigation }: Props) {
           </Text>
         )}
         <View style={styles.minimap}>
-          <Minimap sim={sim} frame={frame} />
+          <Minimap
+            sim={sim}
+            frame={frame}
+            trees={trees}
+            rocks={rocks}
+            cam={cameraRef.current}
+            viewW={width}
+            viewH={height}
+          />
         </View>
       </View>
 
@@ -857,16 +938,20 @@ export function WorldScreen({ navigation }: Props) {
         </View>
       )}
 
-      {/* ---- build dock (hidden while placing; memoized so the 6 Skia icons
-           don't rebuild every frame — only when affordability changes) ---- */}
-      {!placing && !isNight && (
-        <BuildDock
-          affordKey={affordKey}
-          onPick={startPlacing}
-          resources={resources}
-          unlocked={mods.unlockedBuildings}
-        />
-      )}
+      {/* ---- build dock (opened via the «Строить» button). NB: kept mounted
+           and hidden via style — late-mounting 15 Skia canvases evicts the
+           oldest WebGL contexts on web (game canvas goes white). ---- */}
+      <BuildDock
+        visible={buildOpen && !placing && !isNight}
+        affordKey={affordKey}
+        onPick={(t) => {
+          setBuildOpen(false);
+          startPlacing(t);
+        }}
+        onClose={() => setBuildOpen(false)}
+        resources={resources}
+        unlocked={mods.unlockedBuildings}
+      />
 
       {/* ---- placement confirm / cancel ---- */}
       {placing && (
@@ -1036,13 +1121,32 @@ export function WorldScreen({ navigation }: Props) {
           </Pressable>
         ) : (
           <Pressable
-            style={[styles.harvestBtn, !nearTree && !nearRock && styles.btnDim]}
+            style={[styles.harvestBtn, !nearTree && !nearRock && !nearBuilding && styles.btnDim]}
             onPress={harvest}
           >
-            <Text style={styles.fireText}>{nearRock ? 'ДОБЫТЬ' : 'РУБИТЬ'}</Text>
+            <Text style={styles.fireText}>ДЕЙСТВИЕ</Text>
+            <Text style={styles.interactHint}>
+              {nearTree ? '🪓' : nearRock ? '⛏' : nearBuilding ? '🔧' : '·'}
+            </Text>
           </Pressable>
         )}
       </View>
+
+      {/* ---- low-HP warning vignette ---- */}
+      {hpFrac < 0.35 && !gameOver && (
+        <View
+          pointerEvents="none"
+          style={[styles.lowHpVignette, { opacity: Math.min(0.9, (0.35 - hpFrac) * 3) }]}
+        />
+      )}
+
+      {/* ---- dusk warning banner ---- */}
+      {duskBanner && !gameOver && (
+        <View style={styles.dawnWrap} pointerEvents="none">
+          <Text style={styles.duskTitle}>СУМЕРКИ</Text>
+          <Text style={styles.dawnSub}>Орда приближается — к оружию!</Text>
+        </View>
+      )}
 
       {/* ---- dawn banner ---- */}
       {dawnBanner && (
@@ -1091,19 +1195,32 @@ export function WorldScreen({ navigation }: Props) {
  * its 6 Skia `BuildingIcon` canvases aren't rebuilt on every game frame.
  */
 const BuildDock = memo(function BuildDock({
+  visible,
   affordKey,
   onPick,
+  onClose,
   resources,
   unlocked,
 }: {
+  visible: boolean;
   affordKey: string;
   onPick: (t: BuildingType) => void;
+  onClose: () => void;
   resources: ResourceBag;
   unlocked: Set<BuildingType>;
 }) {
   void affordKey;
   return (
-    <View style={styles.buildDock} pointerEvents="box-none">
+    <View
+      style={[styles.buildDock, !visible && styles.buildDockHidden]}
+      pointerEvents={visible ? 'box-none' : 'none'}
+    >
+      <View style={styles.buildDockHeader}>
+        <Text style={styles.buildDockTitle}>ПОСТРОЙКИ</Text>
+        <Pressable style={styles.buildDockClose} onPress={onClose} hitSlop={10}>
+          <Text style={styles.buildDockCloseText}>✕</Text>
+        </Pressable>
+      </View>
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
@@ -1158,7 +1275,7 @@ const BuildDock = memo(function BuildDock({
       </ScrollView>
     </View>
   );
-}, (prev, next) => prev.affordKey === next.affordKey);
+}, (prev, next) => prev.affordKey === next.affordKey && prev.visible === next.visible);
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: C.night },
@@ -1209,6 +1326,7 @@ const styles = StyleSheet.create({
   },
   menuBtnIcon: { color: C.resource, fontSize: 18, lineHeight: 20 },
   menuBtnLabel: { fontFamily: F.heading, color: C.text, fontSize: 12, marginTop: 1 },
+  menuBtnActive: { backgroundColor: C.accent, borderColor: THEME.outline.color },
 
   // left status
   statusCol: { position: 'absolute', top: 78, left: 12, gap: 6 },
@@ -1240,7 +1358,36 @@ const styles = StyleSheet.create({
   weaponWrap: { position: 'absolute', bottom: 16, alignSelf: 'center' },
 
   // build dock
-  buildDock: { position: 'absolute', left: 14, right: 166, bottom: 10 },
+  buildDock: {
+    position: 'absolute',
+    left: 14,
+    right: 166,
+    bottom: 10,
+    backgroundColor: THEME.alpha.darkPanel,
+    borderWidth: THEME.outline.thin,
+    borderColor: C.panelBorder,
+    borderRadius: THEME.radius.sm,
+    paddingBottom: 6,
+  },
+  buildDockHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 10,
+    paddingTop: 6,
+    paddingBottom: 2,
+  },
+  buildDockTitle: { fontFamily: F.heading, color: C.resource, fontSize: 12, letterSpacing: 2 },
+  buildDockClose: {
+    width: 24,
+    height: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 12,
+    backgroundColor: THEME.alpha.black80,
+  },
+  buildDockCloseText: { color: C.text, fontSize: 13, fontFamily: F.heading },
+  buildDockHidden: { opacity: 0 },
   buildCards: { gap: 8, alignItems: 'center', flexGrow: 1, paddingHorizontal: 4 },
   buildSlot: {
     width: 78,
@@ -1371,6 +1518,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   fireText: { fontFamily: F.heading, color: C.text, fontSize: 19, letterSpacing: 1 },
+  interactHint: { fontSize: 16, marginTop: 2 },
   rollBtn: {
     width: 86,
     height: 86,
@@ -1406,6 +1554,20 @@ const styles = StyleSheet.create({
     textShadowRadius: 16,
   },
   dawnSub: { fontFamily: F.body, color: C.text, fontSize: 18, marginTop: 6 },
+  duskTitle: {
+    fontFamily: F.display,
+    color: C.danger,
+    fontSize: 52,
+    letterSpacing: 4,
+    textShadowColor: THEME.alpha.black80,
+    textShadowRadius: 16,
+  },
+  lowHpVignette: {
+    ...StyleSheet.absoluteFillObject,
+    borderWidth: 34,
+    borderColor: 'rgba(150, 20, 20, 0.55)',
+    borderRadius: 48,
+  },
 
   // game over
   overWrap: {

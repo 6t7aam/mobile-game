@@ -311,13 +311,24 @@ export class BattleSim {
     this.player.facing = dir;
   }
 
+  /** Seconds until the next footstep dust puff while running. */
+  private footstepTimer = 0;
+
   moveBy(dx: number, dy: number, dt: number): void {
     const speed = 150;
     const nextX = clampWorld(this.player.x + dx * speed * dt, WORLD.width);
     if (!this.playerHitsBuilding(nextX, this.player.y)) this.player.x = nextX;
     const nextY = clampWorld(this.player.y + dy * speed * dt, WORLD.height);
     if (!this.playerHitsBuilding(this.player.x, nextY)) this.player.y = nextY;
-    if (dx !== 0 || dy !== 0) this.player.facing = Math.atan2(dy, dx);
+    if (dx !== 0 || dy !== 0) {
+      this.player.facing = Math.atan2(dy, dx);
+      // little dust puffs at the heels while running (Escapists-style juice)
+      this.footstepTimer -= dt * Math.hypot(dx, dy);
+      if (this.footstepTimer <= 0) {
+        this.footstepTimer = 0.22;
+        spawnDust(this.particles, this.rng, this.player.x - dx * 6, this.player.y + 10 - dy * 6, 1);
+      }
+    }
   }
 
   private playerHitsBuilding(x: number, y: number): boolean {
@@ -337,6 +348,11 @@ export class BattleSim {
       if ((x - cx) * (x - cx) + (y - cy) * (y - cy) < r * r) return true;
     }
     return false;
+  }
+
+  /** Cosmetic particle burst for outside callers (harvest hits, pickups). */
+  burstAt(x: number, y: number, n: number, kind: ParticleEntity['kind']): void {
+    spawnBurst(this.particles, this.rng, x, y, n, kind);
   }
 
   triggerAbility(): void {
