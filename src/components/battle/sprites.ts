@@ -68,13 +68,21 @@ export function drawTile(c: SkCanvas, col: number, row: number, size: number, bu
     const px = x + 7 + Math.floor(hash2(col * 7 + i, row * 3) * (size - 14) / 3) * 3;
     const py = y + 7 + Math.floor(hash2(col * 3, row * 7 + i) * (size - 14) / 3) * 3;
     if (built) {
-      rect(c, px, py, 3, 3, i % 2 ? C.dirtDark : C.dirt, 0.45);
+      c.drawCircle(px + 1.5, py + 1.5, 1.6, setFill(i % 2 ? C.dirtDark : C.dirt, 0.45));
     } else {
       const d = hash2(col * 13 + i, row * 11);
-      if (d > 0.55) rect(c, px, py, 3, 3, d > 0.9 ? C.grassLight : i % 2 ? C.grassShade : C.grassDark, 0.4);
-      // rare tiny flowers to break up the meadow
-      else if (d < 0.04) {
-        rect(c, px, py, 3, 3, d < 0.02 ? '#e8d56a' : '#d9e9f2', 0.85);
+      if (d > 0.55) {
+        // soft round grass tufts: two leaning blades read as a tuft, not a pixel
+        const tuft = d > 0.9 ? C.grassLight : i % 2 ? C.grassShade : C.grassDark;
+        c.drawLine(px, py + 3, px - 1.2, py - 1.5, setStroke(tuft, 1.6, 0.55));
+        c.drawLine(px + 2, py + 3, px + 3.4, py - 1, setStroke(tuft, 1.6, 0.45));
+      } else if (d < 0.04) {
+        // tiny cartoon flower: petals + warm core
+        const fc = d < 0.02 ? '#e8d56a' : '#d9e9f2';
+        for (const [ox, oy] of [[-1.6, 0], [1.6, 0], [0, -1.6], [0, 1.6]] as const) {
+          c.drawCircle(px + 1.5 + ox, py + 1.5 + oy, 1.3, setFill(fc, 0.9));
+        }
+        c.drawCircle(px + 1.5, py + 1.5, 1, setFill('#e8a23c', 0.95));
       }
     }
   }
@@ -217,8 +225,6 @@ function drawHumanoid(
         c.drawCircle(ex + ax * 0.9 * u, ey + ay * 0.9 * u, 1.25 * u, setFill(OUTLINE.color));
         c.drawCircle(ex + ax * 0.9 * u - 0.4 * u, ey + ay * 0.9 * u - 0.5 * u, 0.4 * u, setFill(C.white));
       }
-      // brow
-      c.drawLine(ex - 1.8 * u, ey - 3.4 * u, ex + 1.8 * u, ey - 3.6 * u, setStroke(style.hair, 1.1 * u, 0.9));
     }
     // small mouth — open when running (panting), neutral when idle
     if (moving) {
@@ -305,9 +311,13 @@ export function drawWeapon(c: SkCanvas, x: number, y: number, facing: number, we
   const big = /rpg|mortar|minigun|launcher/.test(weapon);
   const long = /sniper|rifle|ak|m4|carbine/.test(weapon);
   const len = big ? 24 : long ? 22 : 14;
-  const th = big ? 7 : long ? 4 : 3.5;
-  outlinedRect(c, 6 - recoil * 3, -th / 2, len, th, C.metal);
-  outlinedRect(c, 2 - recoil * 3, -1.5, 7, 5, C.woodSide);
+  const th = big ? 8 : long ? 5 : 4.5;
+  // chunky cartoon gun: rounded barrel with a fat muzzle, wooden stock + grip
+  outlinedRRect(c, 6 - recoil * 3, -th / 2, len, th, th * 0.45, C.metal);
+  rrect(c, 7 - recoil * 3, -th / 2 + 1, len - 3, th * 0.32, th * 0.3, C.metalTop);
+  outlinedRRect(c, 6 + len - 3 - recoil * 3, -th / 2 - 0.8, 4, th + 1.6, 1.6, C.metalSide);
+  outlinedRRect(c, 1 - recoil * 3, -2.2, 8, 5.4, 2, C.woodSide);
+  outlinedRRect(c, 9 - recoil * 3, th * 0.3, 3.4, 5, 1.4, C.woodDark);
   c.restore();
 }
 
@@ -336,7 +346,9 @@ export function drawEnemy(c: SkCanvas, e: EnemyEntity, clock: number): void {
   const big = t === 'brute' || t === 'tank';
   const r = e.boss ? 22 : t === 'tank' ? 19 : t === 'brute' ? 16 : t === 'runner' ? 9 : t === 'armored' ? 13 : 12;
   const speed = Math.hypot(e.vx, e.vy);
-  const stride = Math.sin(clock * (3 + speed * 0.05) + e.x * 0.1) * (t === 'runner' ? 5 : 3);
+  const phase = clock * (3 + speed * 0.05) + e.x * 0.1;
+  const stride = Math.sin(phase) * (t === 'runner' ? 5 : 3);
+  const bob = -Math.abs(Math.sin(phase)) * r * 0.12;
   const burning = e.statuses.some((s) => s.kind === 'burning');
   const poisoned = e.statuses.some((s) => s.kind === 'poisoned');
   const shocked = e.statuses.some((s) => s.kind === 'shocked');
@@ -352,55 +364,79 @@ export function drawEnemy(c: SkCanvas, e: EnemyEntity, clock: number): void {
 
   drawShadow(c, e.x, e.y + r * 0.7, r * 0.95, r * 0.45);
 
-  // legs (stride opposite phase)
-  outlinedRect(c, e.x + px * r * 0.34 - r * 0.18 - ax * 2 + stride * 0.1, e.y + py * r * 0.34 + r * 0.35 + stride, r * 0.34, r * 0.6, skinDark);
-  outlinedRect(c, e.x - px * r * 0.34 - r * 0.18 - ax * 2 - stride * 0.1, e.y - py * r * 0.34 + r * 0.35 - stride, r * 0.34, r * 0.6, skinDark);
+  // stubby rounded legs shuffling along
+  outlinedRRect(c, e.x + px * r * 0.34 - r * 0.18 - ax * 2 + stride * 0.1, e.y + py * r * 0.34 + r * 0.3 + stride, r * 0.36, r * 0.62, r * 0.18, skinDark);
+  outlinedRRect(c, e.x - px * r * 0.34 - r * 0.18 - ax * 2 - stride * 0.1, e.y - py * r * 0.34 + r * 0.3 - stride, r * 0.36, r * 0.62, r * 0.18, skinDark);
 
-  // torso
-  outlinedCircle(c, e.x, e.y, r, skin);
+  // torso — tattered rounded shirt with a ragged hem
+  outlinedRRect(c, e.x - r * 0.78, e.y - r * 0.62 + bob, r * 1.56, r * 1.26, r * 0.5, skin);
+  rrect(c, e.x - r * 0.78 + OUTLINE.width, e.y + r * 0.3 + bob, r * 1.56 - OUTLINE.width * 2, r * 0.26, r * 0.12, skinDark);
   if (t === 'armored' || t === 'tank') {
-    // armor plate across the chest
-    outlinedRect(c, e.x - r * 0.6, e.y - r * 0.3, r * 1.2, r * 0.7, C.metalSide);
-    c.drawRect(Skia.XYWHRect(e.x - r * 0.6, e.y - r * 0.3, r * 1.2, r * 0.18), setFill(C.metalTop));
+    // rounded armor plate with rivets
+    outlinedRRect(c, e.x - r * 0.6, e.y - r * 0.34 + bob, r * 1.2, r * 0.74, r * 0.2, C.metalSide);
+    c.drawCircle(e.x - r * 0.4, e.y - r * 0.14 + bob, r * 0.07, setFill(C.metalTop));
+    c.drawCircle(e.x + r * 0.4, e.y - r * 0.14 + bob, r * 0.07, setFill(C.metalTop));
   }
 
-  // arms reaching toward the target
+  // arms reaching toward the target — rounded capsules with grabby hands
   const reach = t === 'runner' ? 1.15 : 0.95;
   for (const s of [1, -1]) {
-    const hx = e.x + ax * r * reach + px * s * r * 0.5;
-    const hy = e.y + ay * r * reach + py * s * r * 0.5;
-    c.drawLine(e.x + px * s * r * 0.5, e.y + py * s * r * 0.5, hx, hy, setStroke(skinDark, r * (big ? 0.42 : 0.32)));
-    c.drawCircle(hx, hy, r * 0.22, setFill(skin)); // hand
+    const grab = Math.sin(phase * 2 + s) * r * 0.08;
+    const sx = e.x + px * s * r * 0.5;
+    const sy = e.y + py * s * r * 0.5 + bob;
+    const hx = e.x + ax * r * reach + px * s * r * 0.5 + grab;
+    const hy = e.y + ay * r * reach + py * s * r * 0.5 + bob;
+    c.drawLine(sx, sy, hx, hy, setStroke(OUTLINE.color, r * (big ? 0.46 : 0.36)));
+    c.drawLine(sx, sy, hx, hy, setStroke(skinDark, r * (big ? 0.36 : 0.26)));
+    outlinedCircle(c, hx, hy, r * 0.24, skin); // hand
   }
 
-  // head (offset toward facing), with glowing eyes
-  const hX = e.x + ax * r * 0.5;
-  const hY = e.y + ay * r * 0.5 - r * 0.5;
-  outlinedCircle(c, hX, hY, r * 0.6, skin);
+  // oversized chibi head with a cartoon zombie face
+  const hr = r * 0.78;
+  const hX = e.x + ax * r * 0.35;
+  const hY = e.y + ay * r * 0.35 - r * 0.72 + bob;
+  outlinedRRect(c, hX - hr, hY - hr, hr * 2, hr * 2, hr * 0.62, skin);
+  // scruffy hair patches on the crown
+  rrect(c, hX - hr + OUTLINE.width, hY - hr + OUTLINE.width, hr * 2 - OUTLINE.width * 2, hr * 0.5, hr * 0.5, skinDark);
+  c.drawCircle(hX - hr * 0.45, hY - hr * 0.5, hr * 0.16, setFill(skinDark));
+  c.drawCircle(hX + hr * 0.4, hY - hr * 0.55, hr * 0.14, setFill(skinDark));
+
+  // big mismatched cartoon eyes (one wide, one squinting)
   const eyeColor = t === 'screamer' ? C.window : shocked ? C.electric : C.danger;
-  c.drawCircle(hX - px * r * 0.22 + ax * r * 0.2, hY - py * r * 0.22 + ay * r * 0.2, r * 0.13, setFill(eyeColor));
-  c.drawCircle(hX + px * r * 0.22 + ax * r * 0.2, hY + py * r * 0.22 + ay * r * 0.2, r * 0.13, setFill(eyeColor));
+  const eyL = { x: hX - hr * 0.38 + ax * hr * 0.18, y: hY + hr * 0.05 + ay * hr * 0.15 };
+  const eyR = { x: hX + hr * 0.38 + ax * hr * 0.18, y: hY + hr * 0.05 + ay * hr * 0.15 };
+  c.drawOval(Skia.XYWHRect(eyL.x - hr * 0.26, eyL.y - hr * 0.3, hr * 0.52, hr * 0.6), setFill(C.white));
+  c.drawCircle(eyL.x + ax * hr * 0.08, eyL.y + ay * hr * 0.08, hr * 0.14, setFill(eyeColor));
+  c.drawOval(Skia.XYWHRect(eyR.x - hr * 0.2, eyR.y - hr * 0.16, hr * 0.4, hr * 0.32), setFill(C.white));
+  c.drawCircle(eyR.x + ax * hr * 0.06, eyR.y + ay * hr * 0.06, hr * 0.11, setFill(eyeColor));
 
-  // type accents
+  // crooked mouth with a snaggletooth (gaping maw for screamers)
+  const mY = hY + hr * 0.52 + ay * hr * 0.12;
   if (t === 'screamer') {
-    // gaping maw + sound rings
-    c.drawCircle(hX + ax * r * 0.4, hY + ay * r * 0.4, r * 0.22, setFill(C.danger));
+    c.drawOval(Skia.XYWHRect(hX + ax * hr * 0.2 - hr * 0.26, mY - hr * 0.24, hr * 0.52, hr * 0.5), setFill(OUTLINE.color));
     c.drawCircle(e.x, e.y, r + 3 + Math.sin(clock * 8) * 2, setStroke(C.crit, 1.5, 0.5));
+  } else {
+    c.drawLine(hX - hr * 0.3, mY, hX + hr * 0.34, mY - hr * 0.12, setStroke(OUTLINE.color, hr * 0.1, 0.9));
+    rect(c, hX + hr * 0.05, mY - hr * 0.08, hr * 0.14, hr * 0.18, C.white, 0.95);
   }
+  // stitches on the cheek
+  c.drawLine(hX - hr * 0.62, hY + hr * 0.3, hX - hr * 0.3, hY + hr * 0.46, setStroke(skinDark, hr * 0.07, 0.9));
+
   if (t === 'suicide') {
     // pulsing red core
-    c.drawCircle(e.x, e.y, r * 0.5, setFill(C.danger, 0.5 + Math.sin(clock * 10) * 0.4));
+    c.drawCircle(e.x, e.y + bob, r * 0.5, setFill(C.danger, 0.5 + Math.sin(clock * 10) * 0.4));
   }
   if (e.boss) {
     // crown of spikes
     for (let i = 0; i < 5; i++) {
       const a = e.facing - 0.8 + (i / 4) * 1.6;
       const spike = Skia.Path.Make();
-      spike.moveTo(hX + Math.cos(a) * r * 0.5, hY + Math.sin(a) * r * 0.5);
-      spike.lineTo(hX + Math.cos(a) * r * 1.1, hY + Math.sin(a) * r * 1.1);
-      spike.lineTo(hX + Math.cos(a + 0.18) * r * 0.5, hY + Math.sin(a + 0.18) * r * 0.5);
+      spike.moveTo(hX + Math.cos(a) * hr * 0.7, hY + Math.sin(a) * hr * 0.7);
+      spike.lineTo(hX + Math.cos(a) * hr * 1.4, hY + Math.sin(a) * hr * 1.4);
+      spike.lineTo(hX + Math.cos(a + 0.18) * hr * 0.7, hY + Math.sin(a + 0.18) * hr * 0.7);
       spike.close();
       c.drawPath(spike, setFill(C.danger));
+      c.drawPath(spike, setStroke(OUTLINE.color, OUTLINE.thin));
     }
   }
 
@@ -519,18 +555,35 @@ function drawCampfire(c: SkCanvas, cx: number, cy: number, r: number, level: num
 
 function drawWallBlock(c: SkCanvas, x: number, y: number, w: number, h: number, level: number, gate: boolean): void {
   const stone = level >= 4;
-  const front = stone ? C.stone : C.wood;
-  const top = stone ? C.stoneTop : C.woodTop;
-  const side = stone ? C.stoneSide : C.woodSide;
-  const bx = x + w * 0.08;
-  const by = y + h * 0.42;
-  const bw = w * 0.84;
-  const bh = h * 0.42;
-  drawShadow(c, x + w / 2, y + h * 0.84, w * 0.34, h * 0.08);
-  prism(c, bx, by, bw, bh, front, top, side);
-  for (let i = 0; i < 3; i++) rect(c, bx + 5 + i * bw * 0.3, by + bh * 0.38, bw * 0.18, 2, stone ? C.stoneSide : C.woodDark, 0.75);
+  drawShadow(c, x + w / 2, y + h * 0.84, w * 0.36, h * 0.08);
+  if (stone) {
+    // chunky rounded stone rampart with a brick pattern
+    outlinedRRect(c, x + w * 0.06, y + h * 0.3, w * 0.88, h * 0.54, w * 0.07, C.stone);
+    rrect(c, x + w * 0.06 + OUTLINE.width, y + h * 0.3 + OUTLINE.width, w * 0.88 - OUTLINE.width * 2, h * 0.12, w * 0.06, C.stoneTop);
+    for (let r = 0; r < 2; r++) {
+      const yy = y + h * (0.48 + r * 0.16);
+      c.drawLine(x + w * 0.1, yy, x + w * 0.9, yy, setStroke(C.stoneSide, 1.4, 0.6));
+      for (let i = 0; i < 3; i++) {
+        c.drawLine(x + w * (0.2 + i * 0.25 + r * 0.12), yy - h * 0.16, x + w * (0.2 + i * 0.25 + r * 0.12), yy, setStroke(C.stoneSide, 1.4, 0.5));
+      }
+    }
+  } else {
+    // palisade: a row of round-topped logs lashed together
+    const logs = 4;
+    const lw = (w * 0.88) / logs;
+    for (let i = 0; i < logs; i++) {
+      const lx = x + w * 0.06 + i * lw;
+      const tall = i % 2 ? h * 0.3 : h * 0.34;
+      outlinedRRect(c, lx + 1, y + tall, lw - 2, y + h * 0.84 - (y + tall), lw * 0.42, i % 2 ? C.wood : C.woodSide);
+      c.drawOval(Skia.XYWHRect(lx + lw * 0.22, y + tall + 2, lw * 0.55, lw * 0.35), setFill(C.woodTop, 0.9));
+    }
+    // rope lashing across the logs
+    c.drawLine(x + w * 0.06, y + h * 0.52, x + w * 0.94, y + h * 0.5, setStroke(C.resource, 2.2, 0.8));
+    c.drawLine(x + w * 0.06, y + h * 0.68, x + w * 0.94, y + h * 0.66, setStroke(C.resource, 2.2, 0.7));
+  }
   if (gate) {
-    outlinedRect(c, x + w * 0.38, y + h * 0.44, w * 0.24, h * 0.36, C.woodDark);
+    outlinedRRect(c, x + w * 0.34, y + h * 0.4, w * 0.32, h * 0.42, w * 0.1, C.woodDark);
+    c.drawLine(x + w * 0.5, y + h * 0.42, x + w * 0.5, y + h * 0.8, setStroke(OUTLINE.color, 1.4, 0.7));
     c.drawCircle(x + w * 0.57, y + h * 0.62, 2.2, setFill(C.resource));
   }
 }
@@ -820,38 +873,6 @@ function drawYard(c: SkCanvas, type: BuildingType, x: number, y: number, w: numb
     c.drawLine(gx + gw * 0.07, gy + gh * 0.32, gx + gw * 0.07 + w * 0.06, gy + gh * 0.16, setStroke(C.metal, 2));
     c.drawLine(gx + gw * 0.12, gy + gh * 0.32, gx + gw * 0.12 + w * 0.06, gy + gh * 0.16, setStroke(C.metal, 2));
   }
-}
-
-function prism(c: SkCanvas, x: number, y: number, w: number, h: number, front: string, top: string, side: string): void {
-  const lift = Math.min(12, h * 0.24);
-  const topPath = Skia.Path.Make();
-  topPath.moveTo(x, y + lift);
-  topPath.lineTo(x + lift, y);
-  topPath.lineTo(x + w, y);
-  topPath.lineTo(x + w - lift, y + lift);
-  topPath.close();
-  const sidePath = Skia.Path.Make();
-  sidePath.moveTo(x + w - lift, y + lift);
-  sidePath.lineTo(x + w, y);
-  sidePath.lineTo(x + w, y + h - lift);
-  sidePath.lineTo(x + w - lift, y + h);
-  sidePath.close();
-  c.drawPath(topPath, setFill(top));
-  c.drawPath(sidePath, setFill(side));
-  rect(c, x, y + lift, w - lift, h - lift, front);
-  c.drawPath(topPath, setStroke(OUTLINE.color, OUTLINE.width));
-  c.drawPath(sidePath, setStroke(OUTLINE.color, OUTLINE.width));
-  c.drawRect(Skia.XYWHRect(x, y + lift, w - lift, h - lift), setStroke(OUTLINE.color, OUTLINE.width));
-}
-
-function roof(c: SkCanvas, x: number, y: number, w: number, h: number): void {
-  const path = Skia.Path.Make();
-  path.moveTo(x, y + h);
-  path.lineTo(x + w / 2, y);
-  path.lineTo(x + w, y + h);
-  path.close();
-  c.drawPath(path, setFill(C.roofTop));
-  c.drawPath(path, setStroke(OUTLINE.color, OUTLINE.width));
 }
 
 function window(c: SkCanvas, x: number, y: number, clock: number): void {

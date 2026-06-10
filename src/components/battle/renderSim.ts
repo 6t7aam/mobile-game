@@ -284,36 +284,43 @@ function drawWorldTree(canvas: SkCanvas, tree: Tree, t: number): void {
   canvas.scale(scale, scale);
   if (fall > 0) canvas.rotate(tree.fallAngle * fall, 0, 0);
 
-  canvas.drawOval(Skia.XYWHRect(-14, 10, 28, 8), setSolid(C.black, 0.18));
+  canvas.drawOval(Skia.XYWHRect(-15, 10, 30, 9), setSolid(C.black, 0.18));
 
-  // straighter pixel trunk
-  canvas.drawRect(Skia.XYWHRect(-6, -20, 12, 29), setSolid(THEME.outline.color));
-  canvas.drawRect(Skia.XYWHRect(-4, -18, 8, 27), setSolid(C.woodSide));
-  canvas.drawRect(Skia.XYWHRect(-1, -18, 3, 27), setSolid(C.woodTop, 0.85));
-  for (let i = 0; i < 3; i++) canvas.drawRect(Skia.XYWHRect(-4, -12 + i * 8, 8, 2), setSolid(C.woodDark, 0.75));
+  // rounded cartoon trunk with a base flare
+  const trunk = Skia.Path.Make();
+  trunk.moveTo(-8, 9);
+  trunk.cubicTo(-4, 4, -4, -8, -3.5, -20);
+  trunk.lineTo(3.5, -20);
+  trunk.cubicTo(4, -8, 4, 4, 8, 9);
+  trunk.close();
+  canvas.drawPath(trunk, setSolid(C.woodSide));
+  canvas.drawPath(trunk, strokeSolid(THEME.outline.color, 2.4));
+  canvas.drawLine(-0.5, -18, 1.5, 6, strokeSolid(C.woodTop, 2.2));
 
-  // flatter blocky canopy inspired by top-down prison-yard trees.
+  // puffy blob canopy: overlapping outlined circles like a cartoon broccoli
   canvas.save();
   canvas.translate(sway, 0);
-  // three canopy tints picked deterministically per tree
   const midTint = v2 > 0.66 ? C.leafDark : v2 > 0.33 ? C.forest : '#256b30';
   const litTint = v1 > 0.5 ? C.leaf : '#7cb24e';
-  for (const [rx, ry, rw, rh] of [
-    [-22, -43, 44, 26],
-    [-18, -54, 36, 24],
-    [-28, -36, 24, 22],
-    [4, -36, 24, 22],
-  ] as const) {
-    canvas.drawRect(Skia.XYWHRect(rx - 2, ry - 2, rw + 4, rh + 4), setSolid(THEME.outline.color));
-    canvas.drawRect(Skia.XYWHRect(rx, ry, rw, rh), setSolid(C.forestDark));
+  const blobs: ReadonlyArray<readonly [number, number, number]> = [
+    [-13, -36, 13],
+    [13, -36, 12],
+    [0, -50, 14],
+    [-19, -47, 10],
+    [18, -47, 9.5],
+    [0, -33, 13],
+  ];
+  for (const [bx, by, br] of blobs) canvas.drawCircle(bx, by, br + 2.2, setSolid(THEME.outline.color));
+  for (const [bx, by, br] of blobs) canvas.drawCircle(bx, by, br, setSolid(C.forestDark));
+  // mid + lit layers give it volume from the top-left light
+  for (const [bx, by, br] of [[-9, -41, 10], [9, -42, 9], [0, -49, 10]] as const) {
+    canvas.drawCircle(bx, by, br, setSolid(midTint));
   }
-  canvas.drawRect(Skia.XYWHRect(-17, -49, 34, 18), setSolid(midTint));
-  canvas.drawRect(Skia.XYWHRect(-20, -42, 20, 12), setSolid(litTint));
-  canvas.drawRect(Skia.XYWHRect(2, -42, 18, 12), setSolid(litTint));
-  canvas.drawRect(Skia.XYWHRect(-12, -50, 8, 5), setSolid(C.grassLight, 0.75));
-  canvas.drawRect(Skia.XYWHRect(5, -45, 7, 4), setSolid(C.grassLight, 0.65));
-  canvas.drawRect(Skia.XYWHRect(-18, -33, 4, 4), setSolid(C.leafDark, 0.8));
-  canvas.drawRect(Skia.XYWHRect(15, -35, 4, 4), setSolid(C.leafDark, 0.8));
+  for (const [bx, by, br] of [[-10, -46, 6.5], [3, -52, 5.5], [11, -45, 4.5]] as const) {
+    canvas.drawCircle(bx, by, br, setSolid(litTint));
+  }
+  canvas.drawCircle(-12, -49, 2.4, setSolid(C.grassLight, 0.85));
+  canvas.drawCircle(6, -54, 1.9, setSolid(C.grassLight, 0.75));
   canvas.restore();
 
   // chop wedges on the trunk while being harvested
