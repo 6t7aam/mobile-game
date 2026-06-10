@@ -1,0 +1,38 @@
+
+> ashen-dominion@1.0.0 start
+> expo start
+
+Starting project at D:\mobile game
+Starting Metro Bundler
+Waiting on http://localhost:8081
+Logs for your project will appear below.
+Web Bundled 2726ms index.js (1240 modules)
+Web Bundled 41ms index.js (1 module)
+Web Bundled 42ms index.js (1 module)
+Web Bundling failed 657ms index.js (1 module)
+Unable to resolve "@/components/base/BaseGrid" from "src\screens\DayScreen.tsx"
+Web Bundled 227ms index.js (1 module)
+Web Bundled 63ms index.js (1 module)
+Android Bundling failed 9442ms index.js (1576 modules)
+The package at "node_modules\canvaskit-wasm\bin\full\canvaskit.js" attempted to import the Node standard library module "fs".
+It failed because the native React runtime does not include the Node standard library.
+Learn more: https://docs.expo.dev/workflow/using-libraries/#using-third-party-libraries
+Android Bundling failed 420ms index.js (1576 modules)
+The package at "node_modules\canvaskit-wasm\bin\full\canvaskit.js" attempted to import the Node standard library module "fs".
+It failed because the native React runtime does not include the Node standard library.
+Learn more: https://docs.expo.dev/workflow/using-libraries/#using-third-party-libraries
+Android Bundled 880ms index.js (1495 modules)
+Web Bundled 837ms index.web.js (1240 modules)
+Web Bundled 458ms index.web.js (1 module)
+Web Bundled 163ms index.web.js (1 module)
+Web Bundled 192ms index.web.js (1 module)
+Web Bundled 252ms index.web.js (1 module)
+Web Bundled 46ms index.web.js (1 module)
+Web Bundled 51ms index.web.js (1 module)
+Web Bundled 221ms index.web.js (1 module)
+Web Bundled 207ms index.web.js (1 module)
+Web Bundled 151ms index.web.js (1 module)
+Web Bundled 40ms index.web.js (1 module)
+Web Bundled 35ms index.web.js (1 module)
+Web Bundled 290ms index.web.js (1 module)
+Web Bundled 41ms index.web.js (1 module)

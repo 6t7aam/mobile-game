@@ -1,0 +1,40 @@
+{
+  "expo": {
+    "name": "Ashen Dominion",
+    "slug": "ashen-dominion",
+    "version": "1.0.0",
+    "orientation": "landscape",
+    "scheme": "ashendominion",
+    "userInterfaceStyle": "dark",
+    "backgroundColor": "#0d0d0f",
+    "splash": {
+      "backgroundColor": "#0d0d0f",
+      "resizeMode": "contain"
+    },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": true,
+      "requireFullScreen": true,
+      "bundleIdentifier": "com.ashendominion.app",
+      "buildNumber": "1",
+      "infoPlist": {
+        "UIRequiresFullScreen": true
+      }
+    },
+    "android": {
+      "package": "com.ashendominion.app",
+      "versionCode": 1,
+      "screenOrientation": "landscape"
+    },
+    "plugins": [
+      "expo-asset"
+    ],
+    "web": {
+      "bundler": "metro"
+    },
+    "newArchEnabled": true,
+    "orientationLock": "landscape"
+  }
+}

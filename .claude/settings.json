@@ -1,0 +1,21 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm --version)",
+      "Bash(npx --version)",
+      "Bash(npm install *)",
+      "Bash(npx tsc *)",
+      "Bash(echo \"exit: $?\")",
+      "Bash(npx expo *)",
+      "Bash(echo \"started pid $!\")",
+      "Bash(curl -s \"http://localhost:8081/status\")",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" \"http://localhost:8081\")",
+      "PowerShell($conns = Get-NetTCPConnection -LocalPort 8081 -State Listen -ErrorAction SilentlyContinue; if \\($conns\\) { $procs = $conns.OwningProcess | Select-Object -Unique; foreach \\($p in $procs\\) { Write-Output \"Stopping PID $p \\($\\(\\(Get-Process -Id $p\\).ProcessName\\)\\)\"; Stop-Process -Id $p -Force } } else { Write-Output \"Nothing listening on 8081\" })",
+      "Bash(curl -s http://localhost:4040/api/tunnels)",
+      "Bash(python -c \"import sys,json; d=json.load\\(sys.stdin\\); [print\\(t['public_url']\\) for t in d['tunnels']]\")",
+      "PowerShell($conns = Get-NetTCPConnection -LocalPort 8081 -State Listen -ErrorAction SilentlyContinue; if \\($conns\\) { $conns.OwningProcess | Select-Object -Unique | ForEach-Object { Stop-Process -Id $_ -Force; Write-Output \"stopped $_\" } } else { \"nothing on 8081\" })",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" \"http://localhost:8081/\")",
+      "Bash(curl -s -o .web-bundle-test.js -w \"http=%{http_code} size=%{size_download}\\\\n\" \"http://localhost:8081/index.bundle?platform=web&dev=true\")"
+    ]
+  }
+}
