@@ -17,10 +17,12 @@ import { runOnJS } from 'react-native-reanimated';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 
 import type { RootStackParamList } from '@/navigation/RootNavigator';
-import type { BuildingType, PlacedBuilding, ResourceBag, ResourceType, Rock, Tree } from '@/types';
+import type { BuildingType, IntermediateType, PlacedBuilding, ResourceBag, ResourceType, Rock, Tree } from '@/types';
 import { RESOURCE_TYPES } from '@/types';
-import { GRID, RESOURCE_LABEL, CYCLE } from '@/constants/gameConfig';
-import { BUILDINGS, STARTER_BUILDINGS } from '@/constants/buildings';
+import { GRID, CYCLE, INTERMEDIATE_LABEL, PRODUCTION_RECIPES } from '@/constants/gameConfig';
+import { BUILDINGS } from '@/constants/buildings';
+import { tickProduction, currentCaps, storageLevels } from '@/systems/production';
+import { resolveModifiers } from '@/systems/modifiers';
 import { BattleSim, type PlayerView } from '@/engine/sim';
 import { useGameLoop } from '@/hooks/useGameLoop';
 import { GameCanvas } from '@/components/battle/GameCanvas';
@@ -49,7 +51,41 @@ const TILE = GRID.tileSize;
 const FIXED_DT = 1 / 60;
 const C = THEME.colors;
 const F = THEME.fonts;
-const BUILD_MENU: BuildingType[] = STARTER_BUILDINGS.filter((b) => b !== 'shelter');
+// The full construction catalogue (everything except the campfire itself).
+// Ordered: defense → economy → support. electricFence is research-gated.
+const BUILD_MENU: BuildingType[] = [
+  'wall',
+  'gate',
+  'tower',
+  'sniperNest',
+  'mortar',
+  'electricFence',
+  'barracks',
+  'trainingGround',
+  'workshop',
+  'garden',
+  'generator',
+  'fuelDepot',
+  'storage',
+  'medbay',
+  'researchCenter',
+];
+/** Research id that unlocks a building, if it is gated. */
+const BUILDING_RESEARCH_GATE: Partial<Record<BuildingType, { id: string; name: string }>> = {
+  electricFence: { id: 'fort5', name: 'Электрифицированные Заграждения' },
+};
+/** Which production recipes each work building can run. */
+const BUILDING_RECIPES: Partial<Record<BuildingType, IntermediateType[]>> = {
+  workshop: ['ammo', 'advancedComponents', 'explosives', 'rockets'],
+  garden: ['rations'],
+};
+const INTERMEDIATE_NAME: Record<IntermediateType, string> = {
+  ammo: 'Патроны',
+  advancedComponents: 'Компоненты',
+  rations: 'Пайки',
+  explosives: 'Взрывчатка',
+  rockets: 'Ракеты',
+};
 const BARRACKS_TRAIN_BASE: Partial<ResourceBag> = { food: 20, scrap: 10 };
 const TRAINING_SEC = 18;
 
@@ -73,6 +109,8 @@ export function WorldScreen({ navigation }: Props) {
   const beginNextDay = useGameStore((s) => s.beginNextDay);
   const startNewRun = useGameStore((s) => s.startNewRun);
   const intermediates = useGameStore((s) => s.intermediates);
+  const craft = useGameStore((s) => s.craft);
+  const addIntermediate = useGameStore((s) => s.addIntermediate);
   const tickResearch = useGameStore((s) => s.tickResearch);
 
   const buildings = useBaseStore((s) => s.buildings);
@@ -104,6 +142,20 @@ export function WorldScreen({ navigation }: Props) {
 
   const tutorialDone = useSettingsStore((s) => s.tutorialDone);
   const markTutorialDone = useSettingsStore((s) => s.markTutorialDone);
+
+  // ---- research → gameplay modifiers + effective resource caps --------------
+  const mods = useMemo(() => resolveModifiers(completedResearch), [completedResearch]);
+  const shelterLevel = buildings.find((b) => b.type === 'shelter')?.level ?? 1;
+  const caps = useMemo(
+    () => currentCaps(shelterLevel, mods.resourceCap, storageLevels(buildings)),
+    [shelterLevel, mods, buildings],
+  );
+  const modsRef = useRef(mods);
+  modsRef.current = mods;
+  const capsRef = useRef(caps);
+  capsRef.current = caps;
+  const shelterLevelRef = useRef(shelterLevel);
+  shelterLevelRef.current = shelterLevel;
 
   // ---- the sim (one continuous world) ---------------------------------------
   const sim = useMemo(() => {
@@ -148,6 +200,8 @@ export function WorldScreen({ navigation }: Props) {
   const swingUntilRef = useRef(0);
   const harvestCdRef = useRef(0);
   const earnedSnap = useRef<Record<ResourceType, number>>({ wood: 0, stone: 0, scrap: 0, fuel: 0, food: 0, energy: 0 });
+  const spentSnap = useRef({ ammo: 0, rockets: 0, components: 0 });
+  const prodAccRef = useRef(0);
   const [gameOver, setGameOver] = useState<null | { night: number; cause: 'player' | 'shelter' }>(null);
   const [dawnBanner, setDawnBanner] = useState<null | { night: number; killed: number }>(null);
   const [placing, setPlacing] = useState<BuildingType | null>(null);
@@ -174,6 +228,20 @@ export function WorldScreen({ navigation }: Props) {
         if (delta > 0) addResource(r, delta);
         earnedSnap.current[r] = sim.earned[r];
       });
+      // deduct supplies actually consumed during the night from the stockpile
+      const sp = sim.spent;
+      const usedAmmo = sp.ammo - spentSnap.current.ammo;
+      const usedRockets = sp.rockets - spentSnap.current.rockets;
+      const usedComponents = sp.components - spentSnap.current.components;
+      if (usedAmmo > 0) addIntermediate('ammo', -usedAmmo);
+      if (usedRockets > 0) addIntermediate('rockets', -usedRockets);
+      if (usedComponents > 0) addIntermediate('advancedComponents', -usedComponents);
+      spentSnap.current = { ammo: sp.ammo, rockets: sp.rockets, components: sp.components };
+      // field medicine: a standing medbay patches the survivor up at dawn
+      const hasMedbay = buildingsRef.current.some((b) => b.type === 'medbay' && b.hp > 0);
+      if (hasMedbay) {
+        sim.player.hp = Math.min(sim.player.maxHp, sim.player.hp + sim.player.maxHp * 0.4);
+      }
       sim.encountered.forEach((id) => unlockCodex(id as Parameters<typeof unlockCodex>[0]));
       recordNightSurvived(survivedNight, killed);
       applyBattleResult(sim.snapshotBuildingHp());
@@ -193,6 +261,19 @@ export function WorldScreen({ navigation }: Props) {
     sim.syncBuildings(buildings);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [buildings]);
+
+  // crafted supplies flow into the night sim (only while it's safe to do so —
+  // at night the sim tracks its own consumption and must not be overwritten)
+  useEffect(() => {
+    if (sim.phase === 'day' || sim.phase === 'dawn') {
+      sim.setSupplies({
+        ammo: intermediates.ammo,
+        rockets: intermediates.rockets,
+        components: intermediates.advancedComponents,
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [intermediates]);
 
   // regrowth + music + periodic world autosave (the world persists fully —
   // leaving and re-entering resumes exactly where you left off)
@@ -313,9 +394,14 @@ export function WorldScreen({ navigation }: Props) {
         const cx = (camp.origin.col + 1) * TILE;
         const cy = (camp.origin.row + 1) * TILE;
         if (Math.hypot(p.x - cx, p.y - cy) < TILE * 1.7) {
-          if (carrying.wood) addResource('wood', carrying.wood * 3);
-          if (carrying.stone) addResource('stone', carrying.stone * 3);
-          if (carrying.scrap) addResource('scrap', carrying.scrap * 2);
+          const addCapped = (type: ResourceType, amount: number) => {
+            const cur = useGameStore.getState().resources[type];
+            const room = Math.max(0, capsRef.current[type] - cur);
+            if (room > 0) addResource(type, Math.min(amount, room));
+          };
+          if (carrying.wood) addCapped('wood', carrying.wood * 3);
+          if (carrying.stone) addCapped('stone', carrying.stone * 3);
+          if (carrying.scrap) addCapped('scrap', carrying.scrap * 2);
           carryingRef.current = { wood: 0, stone: 0, scrap: 0 };
           playSfx('building_upgrade');
           hapticMedium();
@@ -479,6 +565,26 @@ export function WorldScreen({ navigation }: Props) {
     sim.step(dt);
     updateCarry();
 
+    // HoI4-style production chains: work buildings generate resources during
+    // daylight (batched ~1/s so the store isn't hammered every frame)
+    if (sim.phase === 'day' || sim.phase === 'dusk') {
+      prodAccRef.current += dt;
+      if (prodAccRef.current >= 1) {
+        const st = useGameStore.getState();
+        st.setResources(
+          tickProduction(
+            st.resources,
+            buildingsRef.current,
+            prodAccRef.current,
+            shelterLevelRef.current,
+            modsRef.current.production,
+            modsRef.current.resourceCap,
+          ),
+        );
+        prodAccRef.current = 0;
+      }
+    }
+
     // adaptive music on phase change
     if (sim.phase !== phaseRef.current) {
       phaseRef.current = sim.phase;
@@ -508,9 +614,15 @@ export function WorldScreen({ navigation }: Props) {
   // ---- derived HUD values ------------------------------------------------------
   const mag = sim.magazine;
   const prog = sim.progress;
-  // a compact key that only changes when the set of affordable buildings flips,
-  // so the memoized BuildDock doesn't rebuild its Skia icons every frame
-  const affordKey = BUILD_MENU.map((t) => (canAfford(BUILDINGS[t].buildCost) ? '1' : '0')).join('');
+  // a compact key that only changes when per-resource affordability or research
+  // locks flip, so the memoized BuildDock doesn't rebuild its Skia icons every frame
+  const affordKey = BUILD_MENU.map((t) => {
+    const gate = BUILDING_RESEARCH_GATE[t];
+    if (gate && !mods.unlockedBuildings.has(t)) return 'L';
+    return (Object.entries(BUILDINGS[t].buildCost) as [ResourceType, number][])
+      .map(([k, v]) => (resources[k] >= v ? '1' : '0'))
+      .join('');
+  }).join('|');
   const isNight = sim.phase === 'night' || sim.phase === 'dusk';
   const carrying = carryingRef.current.wood + carryingRef.current.stone + carryingRef.current.scrap;
   const { tree: nearTree, rock: nearRock } = nearestNode();
@@ -661,12 +773,17 @@ export function WorldScreen({ navigation }: Props) {
         </View>
 
         <View style={styles.resourceStrip}>
-          {RESOURCE_TYPES.map((r) => (
-            <View key={r} style={styles.resChip}>
-              <ResourceIcon type={r} size={22} />
-              <Text style={styles.resValue}>{Math.floor(resources[r])}</Text>
-            </View>
-          ))}
+          {RESOURCE_TYPES.map((r) => {
+            const atCap = Math.floor(resources[r]) >= caps[r];
+            return (
+              <View key={r} style={styles.resChip}>
+                <ResourceIcon type={r} size={22} />
+                <Text style={[styles.resValue, atCap && styles.resValueCap]}>
+                  {Math.floor(resources[r])}
+                </Text>
+              </View>
+            );
+          })}
         </View>
 
         <View style={styles.menuButtons} pointerEvents="box-none">
@@ -688,7 +805,20 @@ export function WorldScreen({ navigation }: Props) {
       {/* ---- left: HP + stamina + minimap ---- */}
       <View style={styles.statusCol} pointerEvents="none">
         <View style={styles.hpBack}>
-          <View style={[styles.hpFill, { width: `${(sim.player.hp / sim.player.maxHp) * 100}%` }]} />
+          <View
+            style={[
+              styles.hpFill,
+              {
+                width: `${(sim.player.hp / sim.player.maxHp) * 100}%`,
+                backgroundColor:
+                  sim.player.hp / sim.player.maxHp > 0.5
+                    ? '#5fae54'
+                    : sim.player.hp / sim.player.maxHp > 0.25
+                      ? C.accent
+                      : C.danger,
+              },
+            ]}
+          />
         </View>
         <View style={styles.stamBack}>
           <View style={[styles.stamFill, { width: `${(sim.stamina / sim.maxStamina) * 100}%` }]} />
@@ -722,6 +852,7 @@ export function WorldScreen({ navigation }: Props) {
             abilityCdTotal={30}
             abilityActiveLeft={sim.abilityActiveLeft}
             outOfSupply={sim.outOfSupply}
+            reserve={sim.supplies.ammo}
           />
         </View>
       )}
@@ -729,7 +860,12 @@ export function WorldScreen({ navigation }: Props) {
       {/* ---- build dock (hidden while placing; memoized so the 6 Skia icons
            don't rebuild every frame — only when affordability changes) ---- */}
       {!placing && !isNight && (
-        <BuildDock affordKey={affordKey} onPick={startPlacing} canAfford={canAfford} />
+        <BuildDock
+          affordKey={affordKey}
+          onPick={startPlacing}
+          resources={resources}
+          unlocked={mods.unlockedBuildings}
+        />
       )}
 
       {/* ---- placement confirm / cancel ---- */}
@@ -789,6 +925,78 @@ export function WorldScreen({ navigation }: Props) {
                     : `Тренировать: 🌿${barracksTrainCost.food ?? 0} ⚙️${barracksTrainCost.scrap ?? 0}`}
                 </Text>
               </Pressable>
+            </View>
+          )}
+          {!isNight && (BUILDING_RECIPES[selectedBuilding.type] ?? []).length > 0 && (
+            <View style={styles.productionPanel}>
+              <Text style={styles.productionTitle}>
+                Производство — {BUILDINGS[selectedBuilding.type].name}
+              </Text>
+              {(BUILDING_RECIPES[selectedBuilding.type] ?? []).map((out) => {
+                const recipe = PRODUCTION_RECIPES.find((r) => r.output === out);
+                if (!recipe) return null;
+                const scale = out === 'ammo' ? mods.ammoCost : 1;
+                const resCosts = (Object.entries(recipe.inputs) as [ResourceType, number][]).map(
+                  ([k, v]) => [k, Math.max(1, Math.ceil(v * scale))] as const,
+                );
+                const intCosts = recipe.intermediateInputs
+                  ? (Object.entries(recipe.intermediateInputs) as [IntermediateType, number][])
+                  : [];
+                const okOne =
+                  resCosts.every(([k, v]) => resources[k] >= v) &&
+                  intCosts.every(([k, v]) => intermediates[k] >= v);
+                const doCraft = (count: number) => {
+                  const made = craft(out, count, scale);
+                  if (made > 0) {
+                    playSfx('building_upgrade');
+                    hapticLight();
+                  } else {
+                    playSfx('ui_error');
+                    hapticError();
+                  }
+                };
+                return (
+                  <View key={out} style={styles.craftRow}>
+                    <View style={styles.craftInfo}>
+                      <Text style={styles.craftName}>
+                        {INTERMEDIATE_NAME[out]} · {Math.floor(intermediates[out])}
+                      </Text>
+                      <View style={styles.costRow}>
+                        {resCosts.map(([k, v]) => (
+                          <View key={k} style={styles.costItem}>
+                            <ResourceIcon type={k} size={13} />
+                            <Text style={[styles.costText, resources[k] < v && styles.costTextBad]}>
+                              {v}
+                            </Text>
+                          </View>
+                        ))}
+                        {intCosts.map(([k, v]) => (
+                          <View key={k} style={styles.costItem}>
+                            <Text style={styles.costText}>{INTERMEDIATE_LABEL[k]}</Text>
+                            <Text
+                              style={[styles.costText, intermediates[k] < v && styles.costTextBad]}
+                            >
+                              {v}
+                            </Text>
+                          </View>
+                        ))}
+                      </View>
+                    </View>
+                    <Pressable
+                      style={[styles.craftBtn, !okOne && styles.productionBtnDisabled]}
+                      onPress={() => doCraft(1)}
+                    >
+                      <Text style={styles.productionBtnText}>+1</Text>
+                    </Pressable>
+                    <Pressable
+                      style={[styles.craftBtn, !okOne && styles.productionBtnDisabled]}
+                      onPress={() => doCraft(5)}
+                    >
+                      <Text style={styles.productionBtnText}>+5</Text>
+                    </Pressable>
+                  </View>
+                );
+              })}
             </View>
           )}
         </View>
@@ -885,28 +1093,65 @@ export function WorldScreen({ navigation }: Props) {
 const BuildDock = memo(function BuildDock({
   affordKey,
   onPick,
-  canAfford,
+  resources,
+  unlocked,
 }: {
   affordKey: string;
   onPick: (t: BuildingType) => void;
-  canAfford: (cost: Partial<Record<ResourceType, number>>) => boolean;
+  resources: ResourceBag;
+  unlocked: Set<BuildingType>;
 }) {
   void affordKey;
   return (
     <View style={styles.buildDock} pointerEvents="box-none">
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.buildCards}>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.buildCards}
+      >
         {BUILD_MENU.map((type) => {
           const def = BUILDINGS[type];
-          const affordable = canAfford(def.buildCost);
+          const gate = BUILDING_RESEARCH_GATE[type];
+          const locked = !!gate && !unlocked.has(type);
+          const costs = Object.entries(def.buildCost) as [ResourceType, number][];
+          const affordable = costs.every(([k, v]) => resources[k] >= v);
           return (
-            <Pressable key={type} onPress={() => onPick(type)} style={[styles.buildSlot, !affordable && styles.buildSlotDisabled]}>
-              <BuildingIcon type={type} level={1} size={48} />
-              <Text style={styles.slotName} numberOfLines={1}>{def.name}</Text>
-              <Text style={[styles.slotCost, !affordable && styles.slotCostBad]} numberOfLines={1}>
-                {(Object.entries(def.buildCost) as [ResourceType, number][])
-                  .map(([k, v]) => `${RESOURCE_LABEL[k]}${v}`)
-                  .join(' ')}
+            <Pressable
+              key={type}
+              onPress={() => {
+                if (locked) {
+                  playSfx('ui_error');
+                  hapticError();
+                } else {
+                  onPick(type);
+                }
+              }}
+              style={[
+                styles.buildSlot,
+                !affordable && !locked && styles.buildSlotDisabled,
+                locked && styles.buildSlotLocked,
+              ]}
+            >
+              <BuildingIcon type={type} level={1} size={40} />
+              <Text style={styles.slotName} numberOfLines={1}>
+                {def.name}
               </Text>
+              {locked && gate ? (
+                <Text style={styles.slotLockText} numberOfLines={1}>
+                  🔒 {gate.name}
+                </Text>
+              ) : (
+                <View style={styles.costRow}>
+                  {costs.map(([k, v]) => (
+                    <View key={k} style={styles.costItem}>
+                      <ResourceIcon type={k} size={11} />
+                      <Text style={[styles.costText, resources[k] < v && styles.costTextBad]}>
+                        {v}
+                      </Text>
+                    </View>
+                  ))}
+                </View>
+              )}
             </Pressable>
           );
         })}
@@ -949,6 +1194,7 @@ const styles = StyleSheet.create({
   },
   resChip: { flexDirection: 'row', alignItems: 'center', gap: 3, paddingHorizontal: 3 },
   resValue: { fontFamily: F.heading, color: C.text, fontSize: 16, minWidth: 20 },
+  resValueCap: { color: C.resource },
   menuButtons: { flexDirection: 'row', gap: 8, marginLeft: 'auto' },
   menuBtn: {
     alignItems: 'center',
@@ -966,10 +1212,26 @@ const styles = StyleSheet.create({
 
   // left status
   statusCol: { position: 'absolute', top: 78, left: 12, gap: 6 },
-  hpBack: { width: 190, height: 14, backgroundColor: C.hpBack, borderWidth: 2, borderColor: THEME.outline.color },
-  hpFill: { height: '100%', backgroundColor: C.blood },
-  stamBack: { width: 150, height: 8, backgroundColor: C.black, borderWidth: 1.5, borderColor: THEME.outline.color },
-  stamFill: { height: '100%', backgroundColor: '#5fae54' },
+  hpBack: {
+    width: 190,
+    height: 14,
+    backgroundColor: 'rgba(0,0,0,0.55)',
+    borderWidth: 2,
+    borderColor: THEME.outline.color,
+    borderRadius: 7,
+    overflow: 'hidden',
+  },
+  hpFill: { height: '100%', backgroundColor: '#5fae54', borderRadius: 5 },
+  stamBack: {
+    width: 150,
+    height: 8,
+    backgroundColor: 'rgba(0,0,0,0.55)',
+    borderWidth: 1.5,
+    borderColor: THEME.outline.color,
+    borderRadius: 4,
+    overflow: 'hidden',
+  },
+  stamFill: { height: '100%', backgroundColor: C.resource, borderRadius: 3 },
   killText: { fontFamily: F.body, color: C.textMuted, fontSize: 13 },
   minimap: { marginTop: 6, borderWidth: 1, borderColor: C.panelBorder, alignSelf: 'flex-start' },
 
@@ -978,23 +1240,42 @@ const styles = StyleSheet.create({
   weaponWrap: { position: 'absolute', bottom: 16, alignSelf: 'center' },
 
   // build dock
-  buildDock: { position: 'absolute', left: 180, right: 180, bottom: 12 },
-  buildCards: { gap: 10, alignItems: 'center', justifyContent: 'center', flexGrow: 1, paddingHorizontal: 4 },
+  buildDock: { position: 'absolute', left: 14, right: 166, bottom: 10 },
+  buildCards: { gap: 8, alignItems: 'center', flexGrow: 1, paddingHorizontal: 4 },
   buildSlot: {
-    width: 86,
-    height: 100,
+    width: 78,
+    height: 96,
     borderRadius: THEME.radius.md,
     borderWidth: THEME.outline.width,
     borderColor: C.panelBorder,
     backgroundColor: THEME.alpha.darkPanel,
     alignItems: 'center',
-    paddingTop: 6,
+    paddingTop: 5,
     gap: 2,
   },
-  buildSlotDisabled: { opacity: 0.45 },
-  slotName: { fontFamily: F.heading, color: C.text, fontSize: 11, width: '96%', textAlign: 'center' },
-  slotCost: { fontFamily: F.body, color: C.resource, fontSize: 12 },
-  slotCostBad: { color: C.danger },
+  buildSlotDisabled: { opacity: 0.55 },
+  buildSlotLocked: { opacity: 0.6, borderColor: C.inactive, borderStyle: 'dashed' },
+  slotName: { fontFamily: F.heading, color: C.text, fontSize: 10, width: '94%', textAlign: 'center', flexShrink: 0 },
+  slotLockText: { fontFamily: F.body, color: C.inactive, fontSize: 9, width: '94%', textAlign: 'center' },
+  costRow: { flexDirection: 'row', alignItems: 'center', gap: 4, flexWrap: 'wrap', justifyContent: 'center', flexShrink: 0 },
+  costItem: { flexDirection: 'row', alignItems: 'center', gap: 2 },
+  costText: { fontFamily: F.heading, color: C.resource, fontSize: 11 },
+  costTextBad: { color: '#e25b50' },
+
+  // craft rows (workshop / garden production)
+  craftRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  craftInfo: { flex: 1, gap: 2 },
+  craftName: { fontFamily: F.body, color: C.text, fontSize: 13 },
+  craftBtn: {
+    width: 44,
+    height: 34,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: C.accent,
+    borderWidth: THEME.outline.width,
+    borderColor: THEME.outline.color,
+    borderRadius: THEME.radius.xs,
+  },
 
   // placement
   placeBar: { position: 'absolute', bottom: 18, alignSelf: 'center', alignItems: 'center', gap: 10 },

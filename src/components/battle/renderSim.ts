@@ -27,6 +27,7 @@ import {
   drawWeapon,
   drawMuzzleFlash,
   drawText,
+  hash2,
 } from './sprites';
 import { getBattleFonts } from './fonts';
 
@@ -265,8 +266,13 @@ function computeOccupancy(sim: BattleSim): void {
  * side, chop marks while being harvested, and a tipping animation when felled.
  */
 function drawWorldTree(canvas: SkCanvas, tree: Tree, t: number): void {
-  const x = tree.tileX * TILE + TILE / 2;
-  const y = tree.tileY * TILE + TILE / 2;
+  // deterministic per-tree variation so the forest doesn't read as a copy-paste
+  // grid: each tree gets its own size, sub-tile offset and canopy tint.
+  const v1 = hash2(tree.tileX * 3 + 7, tree.tileY * 5 + 3);
+  const v2 = hash2(tree.tileX * 11 + 1, tree.tileY * 7 + 9);
+  const x = tree.tileX * TILE + TILE / 2 + (v1 - 0.5) * TILE * 0.45;
+  const y = tree.tileY * TILE + TILE / 2 + (v2 - 0.5) * TILE * 0.3;
+  const scale = 0.78 + v1 * 0.42;
   const fall =
     tree.state === 'falling' && tree.fallStartedAt
       ? Math.min(1, (Date.now() - tree.fallStartedAt) / 800)
@@ -275,6 +281,7 @@ function drawWorldTree(canvas: SkCanvas, tree: Tree, t: number): void {
 
   canvas.save();
   canvas.translate(x, y);
+  canvas.scale(scale, scale);
   if (fall > 0) canvas.rotate(tree.fallAngle * fall, 0, 0);
 
   canvas.drawOval(Skia.XYWHRect(-14, 10, 28, 8), setSolid(C.black, 0.18));
@@ -288,6 +295,9 @@ function drawWorldTree(canvas: SkCanvas, tree: Tree, t: number): void {
   // flatter blocky canopy inspired by top-down prison-yard trees.
   canvas.save();
   canvas.translate(sway, 0);
+  // three canopy tints picked deterministically per tree
+  const midTint = v2 > 0.66 ? C.leafDark : v2 > 0.33 ? C.forest : '#256b30';
+  const litTint = v1 > 0.5 ? C.leaf : '#7cb24e';
   for (const [rx, ry, rw, rh] of [
     [-22, -43, 44, 26],
     [-18, -54, 36, 24],
@@ -297,9 +307,9 @@ function drawWorldTree(canvas: SkCanvas, tree: Tree, t: number): void {
     canvas.drawRect(Skia.XYWHRect(rx - 2, ry - 2, rw + 4, rh + 4), setSolid(THEME.outline.color));
     canvas.drawRect(Skia.XYWHRect(rx, ry, rw, rh), setSolid(C.forestDark));
   }
-  canvas.drawRect(Skia.XYWHRect(-17, -49, 34, 18), setSolid(C.forest));
-  canvas.drawRect(Skia.XYWHRect(-20, -42, 20, 12), setSolid(C.leaf));
-  canvas.drawRect(Skia.XYWHRect(2, -42, 18, 12), setSolid(C.leaf));
+  canvas.drawRect(Skia.XYWHRect(-17, -49, 34, 18), setSolid(midTint));
+  canvas.drawRect(Skia.XYWHRect(-20, -42, 20, 12), setSolid(litTint));
+  canvas.drawRect(Skia.XYWHRect(2, -42, 18, 12), setSolid(litTint));
   canvas.drawRect(Skia.XYWHRect(-12, -50, 8, 5), setSolid(C.grassLight, 0.75));
   canvas.drawRect(Skia.XYWHRect(5, -45, 7, 4), setSolid(C.grassLight, 0.65));
   canvas.drawRect(Skia.XYWHRect(-18, -33, 4, 4), setSolid(C.leafDark, 0.8));

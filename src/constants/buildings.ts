@@ -116,15 +116,13 @@ export const BUILDINGS: Record<BuildingType, BuildingDef> = {
     maxLevel: 6,
     baseHp: 520,
     buildCost: { wood: 45 },
-    produces: 'wood',
-    productionRate: 0.5,
     scaling: {
       hpPerLevel: 0.2,
       outputPerLevel: 0.25,
       upgradeBaseCost: { wood: 40, scrap: 35 },
       costGrowth: 1.42,
     },
-    description: 'Хранилище дерева и базовых припасов.',
+    description: 'Склад припасов: +15% к лимитам всех ресурсов за уровень.',
   },
 
   workshop: {

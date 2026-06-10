@@ -13,6 +13,8 @@ interface WeaponHUDProps {
   abilityCdTotal: number;
   abilityActiveLeft?: number;
   outOfSupply?: boolean;
+  /** Remaining ammo stockpile beyond the magazine (world mode). */
+  reserve?: number;
 }
 
 /** Bottom-center weapon readout: name, magazine, reload, ability cooldown. */
@@ -25,6 +27,7 @@ export function WeaponHUD({
   abilityCdTotal,
   abilityActiveLeft = 0,
   outOfSupply = false,
+  reserve,
 }: WeaponHUDProps) {
   const def = WEAPONS[weapon];
   const reloading = reloadProgress < 1;
@@ -51,6 +54,7 @@ export function WeaponHUD({
           </View>
           <Text style={styles.mag}>
             {reloading ? 'ПЕРЕЗАРЯДКА' : `${magCurrent}/${magSize}`}
+            {!reloading && reserve !== undefined ? ` · запас ${reserve}` : ''}
           </Text>
         </View>
       ) : (

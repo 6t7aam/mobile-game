@@ -5,7 +5,9 @@ import type { RootStackParamList } from '@/navigation/RootNavigator';
 import type { WeaponBranch, WeaponDef, ResourceType } from '@/types';
 import { COLORS, FONTS, RESOURCE_LABEL } from '@/constants/gameConfig';
 import { DarkButton } from '@/components/ui/DarkButton';
+import { ResourceIcon } from '@/components/ui/ResourceIcon';
 import { WEAPON_LIST, weaponUpgradeCost, weaponStatsAtLevel } from '@/constants/weapons';
+import { resolveModifiers } from '@/systems/modifiers';
 import { useProgressStore } from '@/store/progressStore';
 import { usePlayerStore } from '@/store/playerStore';
 import { useGameStore } from '@/store/gameStore';
@@ -20,7 +22,14 @@ const BRANCH_LABEL: Record<WeaponBranch, string> = {
 
 const BRANCHES: WeaponBranch[] = ['primitive', 'firearm', 'heavy'];
 
+/** Research that unlocks each branch (см. дерево технологий). */
+const BRANCH_RESEARCH: Partial<Record<WeaponBranch, string>> = {
+  firearm: 'Порох',
+  heavy: 'Тяжёлое Вооружение',
+};
+
 export function ArsenalScreen({ navigation }: Props) {
+  const completedResearch = useProgressStore((s) => s.completedResearch);
   const owned = useProgressStore((s) => s.ownedWeapons);
   const buyWeapon = useProgressStore((s) => s.buyWeapon);
   const upgradeWeapon = useProgressStore((s) => s.upgradeWeapon);
@@ -29,6 +38,8 @@ export function ArsenalScreen({ navigation }: Props) {
   const resources = useGameStore((s) => s.resources);
   const canAfford = useGameStore((s) => s.canAfford);
   const spendResources = useGameStore((s) => s.spendResources);
+
+  const mods = resolveModifiers(completedResearch);
 
   const ownsId = (id: string) => owned.some((w) => w.id === id);
   const levelOf = (id: string) => owned.find((w) => w.id === id)?.level ?? 0;
@@ -54,21 +65,29 @@ export function ArsenalScreen({ navigation }: Props) {
         <Text style={styles.title}>Арсенал</Text>
         <View style={styles.resBar}>
           {(Object.entries(resources) as [ResourceType, number][]).map(([k, v]) => (
-            <Text key={k} style={styles.resItem}>
-              {RESOURCE_LABEL[k]} {Math.floor(v)}
-            </Text>
+            <View key={k} style={styles.resChip}>
+              <ResourceIcon type={k} size={18} />
+              <Text style={styles.resItem}>{Math.floor(v)}</Text>
+            </View>
           ))}
         </View>
       </View>
 
       <ScrollView contentContainerStyle={styles.body}>
-        {BRANCHES.map((branch) => (
+        {BRANCHES.map((branch) => {
+          const branchLocked = !mods.unlockedBranches.has(branch);
+          return (
           <View key={branch} style={styles.branch}>
             <Text style={styles.branchTitle}>{BRANCH_LABEL[branch]}</Text>
+            {branchLocked && (
+              <Text style={styles.branchLockNote}>
+                🔒 Ветка закрыта — изучите «{BRANCH_RESEARCH[branch]}» в Дереве Технологий
+              </Text>
+            )}
             {WEAPON_LIST.filter((w) => w.branch === branch).map((w) => {
               const isOwned = ownsId(w.id);
               const isEquipped = equipped === w.id;
-              const prereqMet = w.prerequisites.every(ownsId);
+              const prereqMet = !branchLocked && w.prerequisites.every(ownsId);
               const affordable = canAfford(w.purchaseCost);
               const level = levelOf(w.id);
               const upCost = isOwned ? weaponUpgradeCost(w, level) : null;
@@ -128,7 +147,7 @@ export function ArsenalScreen({ navigation }: Props) {
                       </>
                     ) : prereqMet ? (
                       <DarkButton
-                        label={affordable ? 'Купить' : 'Дорого'}
+                        label="Купить"
                         disabled={!affordable}
                         onPress={() => buy(w)}
                       />
@@ -140,7 +159,8 @@ export function ArsenalScreen({ navigation }: Props) {
               );
             })}
           </View>
-        ))}
+          );
+        })}
       </ScrollView>
     </View>
   );
@@ -150,11 +170,13 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
   header: { flexDirection: 'row', alignItems: 'center', gap: 16, padding: 16 },
   title: { fontFamily: FONTS.heading, color: COLORS.accent, fontSize: 20 },
-  resBar: { flexDirection: 'row', gap: 12, marginLeft: 'auto' },
+  resBar: { flexDirection: 'row', gap: 10, marginLeft: 'auto', alignItems: 'center' },
+  resChip: { flexDirection: 'row', alignItems: 'center', gap: 3 },
   resItem: { fontFamily: FONTS.body, color: COLORS.resource, fontSize: 14 },
   body: { padding: 16, gap: 24 },
   branch: { gap: 8 },
   branchTitle: { fontFamily: FONTS.heading, color: COLORS.text, fontSize: 18, marginBottom: 4 },
+  branchLockNote: { fontFamily: FONTS.body, color: COLORS.inactive, fontSize: 13, marginBottom: 6 },
   weapon: {
     flexDirection: 'row',
     alignItems: 'center',

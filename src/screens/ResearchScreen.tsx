@@ -10,6 +10,7 @@ import { ResourceIcon } from '@/components/ui/ResourceIcon';
 import { RESEARCH } from '@/constants/research';
 import { useProgressStore } from '@/store/progressStore';
 import { useGameStore } from '@/store/gameStore';
+import { useBaseStore } from '@/store/baseStore';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Research'>;
 
@@ -29,6 +30,10 @@ export function ResearchScreen({ navigation }: Props) {
   const spendResources = useGameStore((s) => s.spendResources);
   const activeResearch = useGameStore((s) => s.activeResearch);
   const setActiveResearch = useGameStore((s) => s.setActiveResearch);
+  // multi-day research needs a standing Council (research centre) at the base
+  const hasCouncil = useBaseStore((s) =>
+    s.buildings.some((b) => b.type === 'researchCenter' && b.hp > 0),
+  );
 
   const isAvailable = (id: string) => {
     const node = RESEARCH.find((r) => r.id === id);
@@ -44,6 +49,7 @@ export function ResearchScreen({ navigation }: Props) {
       if (spendResources(node.cost)) completeResearch(id);
       return;
     }
+    if (!hasCouncil) return;
     if (spendResources(node.cost)) {
       setActiveResearch(id, node.days); // completes over `days` (advances each dawn)
     }
@@ -65,6 +71,11 @@ export function ResearchScreen({ navigation }: Props) {
       </View>
 
       <ScrollView contentContainerStyle={styles.body}>
+        {!hasCouncil && (
+          <Text style={styles.councilNote}>
+            ⚠ Постройте Совет в лагере, чтобы запускать исследования
+          </Text>
+        )}
         {BRANCHES.map((branch) => (
           <View key={branch} style={styles.branch}>
             <Text style={styles.branchTitle}>{BRANCH_LABEL[branch]}</Text>
@@ -100,7 +111,7 @@ export function ResearchScreen({ navigation }: Props) {
                   {!done && available && activeResearch?.id !== node.id && (
                     <DarkButton
                       label={node.days > 0 ? `Изучить (${node.days}д)` : 'Изучить'}
-                      disabled={!affordable || !!activeResearch}
+                      disabled={!affordable || !!activeResearch || (node.days > 0 && !hasCouncil)}
                       onPress={() => research(node.id)}
                     />
                   )}
@@ -124,6 +135,15 @@ const styles = StyleSheet.create({
   nodeCost: { fontFamily: FONTS.body, color: COLORS.resource, fontSize: 13, marginTop: 3 },
   nodeCostBad: { color: COLORS.danger },
   body: { padding: 16, gap: 24 },
+  councilNote: {
+    fontFamily: FONTS.body,
+    color: COLORS.resource,
+    fontSize: 14,
+    backgroundColor: COLORS.panel,
+    borderWidth: 1,
+    borderColor: COLORS.accent,
+    padding: 10,
+  },
   branch: { gap: 8 },
   branchTitle: { fontFamily: FONTS.heading, color: COLORS.text, fontSize: 18, marginBottom: 4 },
   node: {

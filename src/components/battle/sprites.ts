@@ -42,7 +42,7 @@ function outlinedCircle(c: SkCanvas, x: number, y: number, r: number, color: str
   c.drawCircle(x, y, Math.max(0, r - OUTLINE.width), setFill(color));
 }
 
-function hash2(x: number, y: number): number {
+export function hash2(x: number, y: number): number {
   let h = (x * 374761393 + y * 668265263) >>> 0;
   h = (h ^ (h >>> 13)) * 1274126177;
   return ((h ^ (h >>> 16)) >>> 0) / 4294967295;
@@ -52,12 +52,17 @@ export function drawTile(c: SkCanvas, col: number, row: number, size: number, bu
   const x = col * size;
   const y = row * size;
   const n = hash2(col + 1, row + 1);
-  const base = built ? (n > 0.5 ? C.path : C.dirtLight) : n > 0.72 ? C.grassLight : n > 0.42 ? C.grass : C.grassDark;
+  // organic meadow: one uniform base with soft, sparse patches instead of the
+  // old high-contrast checkerboard (which read as a chessboard from the air)
+  const base = built ? (n > 0.5 ? C.path : C.dirtLight) : C.grass;
   rect(c, x, y, size, size, base);
   if (built) {
     rect(c, x + 4, y + 4, size - 8, size - 8, C.pathDark, 0.12);
-  } else {
-    rect(c, x + 2, y + 2, size - 4, size - 4, n > 0.6 ? C.grassLight : C.grass, 0.18);
+    c.drawRect(Skia.XYWHRect(x, y, size, size), setStroke(A.grid, 1));
+  } else if (n > 0.86) {
+    rect(c, x, y, size, size, C.grassLight, 0.35);
+  } else if (n < 0.14) {
+    rect(c, x, y, size, size, C.grassDark, 0.3);
   }
   for (let i = 0; i < 3; i++) {
     const px = x + 7 + Math.floor(hash2(col * 7 + i, row * 3) * (size - 14) / 3) * 3;
@@ -65,10 +70,14 @@ export function drawTile(c: SkCanvas, col: number, row: number, size: number, bu
     if (built) {
       rect(c, px, py, 3, 3, i % 2 ? C.dirtDark : C.dirt, 0.45);
     } else {
-      rect(c, px, py, 3, 3, i % 2 ? C.grassShade : C.grassDark, 0.48);
+      const d = hash2(col * 13 + i, row * 11);
+      if (d > 0.55) rect(c, px, py, 3, 3, d > 0.9 ? C.grassLight : i % 2 ? C.grassShade : C.grassDark, 0.4);
+      // rare tiny flowers to break up the meadow
+      else if (d < 0.04) {
+        rect(c, px, py, 3, 3, d < 0.02 ? '#e8d56a' : '#d9e9f2', 0.85);
+      }
     }
   }
-  c.drawRect(Skia.XYWHRect(x, y, size, size), setStroke(A.grid, 1));
 }
 
 export function drawText(c: SkCanvas, text: string, x: number, y: number, font: SkFont, color: string, alpha = 1, center = true): void {

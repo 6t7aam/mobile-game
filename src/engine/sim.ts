@@ -290,6 +290,16 @@ export class BattleSim {
     };
   }
 
+  /**
+   * Push freshly crafted supplies into a running sim (world mode: the player
+   * can craft ammo at the workshop during the day and fight with it at night).
+   */
+  setSupplies(s: { ammo: number; rockets: number; components: number }): void {
+    this.ammo = s.ammo;
+    this.rockets = s.rockets;
+    this.components = s.components;
+  }
+
   // ---- input from controls -------------------------------------------------
 
   setFiring(on: boolean): void {
