@@ -737,7 +737,7 @@ export function WorldScreen({ navigation }: Props) {
               ambient: sim.lightLevel,
               playerSwing: swing,
               playerCarrying: carrying,
-              playerRoll: sim.rollTime > 0 ? sim.rollTime / 0.38 : 0,
+              playerRoll: sim.rollProgress,
             }}
           />
         </View>

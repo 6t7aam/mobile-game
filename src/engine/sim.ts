@@ -192,8 +192,8 @@ export class BattleSim {
   rollTime = 0;
   private rollDirX = 0;
   private rollDirY = 0;
-  private static readonly ROLL_DURATION = 0.38;
-  private static readonly ROLL_SPEED = 420;
+  private static readonly ROLL_DURATION = 0.32;
+  private static readonly ROLL_SPEED = 290;
   private static readonly ROLL_COST = 30;
 
   private hitCb: HitCallbacks;
@@ -485,6 +485,11 @@ export class BattleSim {
   /** True while the player has roll i-frames. */
   get invulnerable(): boolean {
     return this.rollTime > 0;
+  }
+
+  /** Roll progress 1 → 0 (for render layers; avoids hardcoding the duration). */
+  get rollProgress(): number {
+    return this.rollTime > 0 ? this.rollTime / BattleSim.ROLL_DURATION : 0;
   }
 
   /**

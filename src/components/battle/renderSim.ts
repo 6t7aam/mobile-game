@@ -665,12 +665,12 @@ function drawLightningBolt(canvas: SkCanvas, x0: number, y0: number, x1: number,
 
 function drawPlayer_(canvas: SkCanvas, sim: BattleSim, t: number, world?: WorldView): void {
   const p = sim.player;
-  // movement detected via velocity proxy: compare to last position cache
-  const moving = playerMoving(p.x, p.y);
+  // walk cycle driven by actual distance traveled — no more running in place
+  const { moving, phase } = playerWalk(p.x, p.y);
   const hurtFlash = p.hp < p.maxHp * 0.3 ? 0.3 + Math.sin(t * 8) * 0.3 : 0;
 
   // dodge roll: tucked spin along the dash (souls-style)
-  const rollT = world?.playerRoll ?? (sim.rollTime > 0 ? sim.rollTime / 0.38 : 0);
+  const rollT = world?.playerRoll ?? sim.rollProgress;
   if (rollT > 0) {
     canvas.save();
     canvas.translate(p.x, p.y);
@@ -683,7 +683,7 @@ function drawPlayer_(canvas: SkCanvas, sim: BattleSim, t: number, world?: WorldV
 
   const swing = world?.playerSwing ?? 0;
   const carrying = world?.playerCarrying ?? 0;
-  drawPlayer(canvas, p.x, p.y, p.facing, moving, t, hurtFlash, swing, carrying);
+  drawPlayer(canvas, p.x, p.y, p.facing, moving, t, hurtFlash, swing, carrying, phase);
 
   // weapon in hands (hidden mid-harvest-swing — the axe is drawn by the swing)
   if (swing <= 0) {
@@ -700,11 +700,15 @@ function drawPlayer_(canvas: SkCanvas, sim: BattleSim, t: number, world?: WorldV
 
 let lastPX = 0;
 let lastPY = 0;
-function playerMoving(x: number, y: number): boolean {
-  const m = Math.abs(x - lastPX) + Math.abs(y - lastPY) > 0.25;
+let walkPhase = 0;
+/** Advance the walk cycle by distance actually covered (~52px per stride). */
+function playerWalk(x: number, y: number): { moving: boolean; phase: number } {
+  const dist = Math.hypot(x - lastPX, y - lastPY);
   lastPX = x;
   lastPY = y;
-  return m;
+  const moving = dist > 0.25;
+  if (moving && dist < 60) walkPhase += dist / 52; // ignore teleports/respawns
+  return { moving, phase: walkPhase };
 }
 
 function drawParticles(canvas: SkCanvas, sim: BattleSim): void {
