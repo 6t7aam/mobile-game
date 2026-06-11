@@ -17,10 +17,12 @@ import { runOnJS } from 'react-native-reanimated';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 
 import type { RootStackParamList } from '@/navigation/RootNavigator';
-import type { BuildingType, PlacedBuilding, ResourceBag, ResourceType, Rock, Tree } from '@/types';
+import type { BuildingType, IntermediateType, PlacedBuilding, ResourceBag, ResourceType, Rock, Tree } from '@/types';
 import { RESOURCE_TYPES } from '@/types';
-import { GRID, RESOURCE_LABEL, CYCLE } from '@/constants/gameConfig';
-import { BUILDINGS, STARTER_BUILDINGS } from '@/constants/buildings';
+import { GRID, CYCLE, INTERMEDIATE_LABEL, PRODUCTION_RECIPES } from '@/constants/gameConfig';
+import { BUILDINGS } from '@/constants/buildings';
+import { tickProduction, currentCaps, storageLevels } from '@/systems/production';
+import { resolveModifiers } from '@/systems/modifiers';
 import { BattleSim, type PlayerView } from '@/engine/sim';
 import { useGameLoop } from '@/hooks/useGameLoop';
 import { GameCanvas } from '@/components/battle/GameCanvas';
@@ -34,8 +36,13 @@ import { BuildingIcon } from '@/components/base/BuildingIcon';
 import { BuildingUpgradePanel, sellRefund, upgradeCost } from '@/components/base/BuildingUpgradePanel';
 import { DayTutorial, type TutorialStep } from '@/components/ui/DayTutorial';
 import { playSfx, setMusic, stopMusic } from '@/audio/AudioManager';
+import { sfxForWeapon } from '@/audio/registry';
 import { getActiveSlot, saveToSlot } from '@/save/slots';
 import { hapticLight, hapticMedium, hapticHeavy, hapticSelect, hapticError } from '@/systems/haptics';
+import { useT, useTn, t as tGlobal, tn as tnGlobal } from '@/i18n/useT';
+import { useMetaStore } from '@/store/metaStore';
+import { SKINS } from '@/constants/skins';
+import { setPlayerSkin } from '@/components/battle/sprites';
 import { useGameStore } from '@/store/gameStore';
 import { useBaseStore } from '@/store/baseStore';
 import { usePlayerStore } from '@/store/playerStore';
@@ -49,20 +56,62 @@ const TILE = GRID.tileSize;
 const FIXED_DT = 1 / 60;
 const C = THEME.colors;
 const F = THEME.fonts;
-const BUILD_MENU: BuildingType[] = STARTER_BUILDINGS.filter((b) => b !== 'shelter');
+// The full construction catalogue (everything except the campfire itself).
+// Ordered: defense → economy → support. electricFence is research-gated.
+const BUILD_MENU: BuildingType[] = [
+  'wall',
+  'gate',
+  'tower',
+  'sniperNest',
+  'mortar',
+  'electricFence',
+  'barracks',
+  'trainingGround',
+  'workshop',
+  'garden',
+  'generator',
+  'fuelDepot',
+  'storage',
+  'medbay',
+  'researchCenter',
+];
+/** Research id that unlocks a building, if it is gated. */
+const BUILDING_RESEARCH_GATE: Partial<Record<BuildingType, { id: string; name: string }>> = {
+  electricFence: { id: 'fort5', name: 'Электрифицированные Заграждения' },
+};
+/** Which production recipes each work building can run. */
+const BUILDING_RECIPES: Partial<Record<BuildingType, IntermediateType[]>> = {
+  workshop: ['ammo', 'advancedComponents', 'explosives', 'rockets'],
+  garden: ['rations'],
+};
+const INTERMEDIATE_KEY: Record<IntermediateType, string> = {
+  ammo: 'res.ammo',
+  advancedComponents: 'res.components',
+  rations: 'res.rations',
+  explosives: 'res.explosives',
+  rockets: 'res.rockets',
+};
 const BARRACKS_TRAIN_BASE: Partial<ResourceBag> = { food: 20, scrap: 10 };
 const TRAINING_SEC = 18;
 
-const PHASE_LABEL: Record<string, string> = {
-  day: 'День',
-  dusk: 'Сумерки',
-  night: 'Ночь',
-  dawn: 'Рассвет',
+const PHASE_KEY: Record<string, string> = {
+  day: 'phase.day',
+  dusk: 'phase.dusk',
+  night: 'phase.night',
+  dawn: 'phase.dawn',
 };
 
 export function WorldScreen({ navigation }: Props) {
   const { width, height } = useWindowDimensions();
   useBattleFonts();
+  const T = useT();
+  const Tn = useTn();
+
+  // apply the equipped meme skin to the player sprite
+  const equippedSkin = useMetaStore((s) => s.equippedSkin);
+  useEffect(() => {
+    setPlayerSkin(SKINS[equippedSkin]);
+  }, [equippedSkin]);
 
   // ---- stores ---------------------------------------------------------------
   const night = useGameStore((s) => s.night);
@@ -73,6 +122,8 @@ export function WorldScreen({ navigation }: Props) {
   const beginNextDay = useGameStore((s) => s.beginNextDay);
   const startNewRun = useGameStore((s) => s.startNewRun);
   const intermediates = useGameStore((s) => s.intermediates);
+  const craft = useGameStore((s) => s.craft);
+  const addIntermediate = useGameStore((s) => s.addIntermediate);
   const tickResearch = useGameStore((s) => s.tickResearch);
 
   const buildings = useBaseStore((s) => s.buildings);
@@ -105,6 +156,20 @@ export function WorldScreen({ navigation }: Props) {
   const tutorialDone = useSettingsStore((s) => s.tutorialDone);
   const markTutorialDone = useSettingsStore((s) => s.markTutorialDone);
 
+  // ---- research → gameplay modifiers + effective resource caps --------------
+  const mods = useMemo(() => resolveModifiers(completedResearch), [completedResearch]);
+  const shelterLevel = buildings.find((b) => b.type === 'shelter')?.level ?? 1;
+  const caps = useMemo(
+    () => currentCaps(shelterLevel, mods.resourceCap, storageLevels(buildings)),
+    [shelterLevel, mods, buildings],
+  );
+  const modsRef = useRef(mods);
+  modsRef.current = mods;
+  const capsRef = useRef(caps);
+  capsRef.current = caps;
+  const shelterLevelRef = useRef(shelterLevel);
+  shelterLevelRef.current = shelterLevel;
+
   // ---- the sim (one continuous world) ---------------------------------------
   const sim = useMemo(() => {
     const sh = buildings.find((b) => b.type === 'shelter');
@@ -132,6 +197,30 @@ export function WorldScreen({ navigation }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // ---- combat sfx (throttled so miniguns don't spam 9 sounds a second) -----
+  useEffect(() => {
+    const lastShot = new Map<string, number>();
+    let lastDeath = 0;
+    sim.onShot = (def) => {
+      const now = Date.now();
+      const sfx = sfxForWeapon(def);
+      const minGap = def.fireRate > 6 ? 110 : 60;
+      if (now - (lastShot.get(sfx) ?? 0) < minGap) return;
+      lastShot.set(sfx, now);
+      playSfx(sfx);
+    };
+    sim.onEnemyDeath = () => {
+      const now = Date.now();
+      if (now - lastDeath < 180) return;
+      lastDeath = now;
+      playSfx('zombie_death');
+    };
+    return () => {
+      sim.onShot = undefined;
+      sim.onEnemyDeath = undefined;
+    };
+  }, [sim]);
+
   // keep the sim's weapon in sync with the arsenal
   useEffect(() => {
     sim.player.weapon = equipped;
@@ -148,9 +237,13 @@ export function WorldScreen({ navigation }: Props) {
   const swingUntilRef = useRef(0);
   const harvestCdRef = useRef(0);
   const earnedSnap = useRef<Record<ResourceType, number>>({ wood: 0, stone: 0, scrap: 0, fuel: 0, food: 0, energy: 0 });
+  const spentSnap = useRef({ ammo: 0, rockets: 0, components: 0 });
+  const prodAccRef = useRef(0);
   const [gameOver, setGameOver] = useState<null | { night: number; cause: 'player' | 'shelter' }>(null);
   const [dawnBanner, setDawnBanner] = useState<null | { night: number; killed: number }>(null);
   const [placing, setPlacing] = useState<BuildingType | null>(null);
+  const [buildOpen, setBuildOpen] = useState(false);
+  const [duskBanner, setDuskBanner] = useState(false);
   const [ghost, setGhost] = useState<PlacementGhost | null>(null);
   const [selectedBuildingId, setSelectedBuildingId] = useState<string | null>(null);
   const [tutStep, setTutStep] = useState<TutorialStep>('chop');
@@ -174,6 +267,20 @@ export function WorldScreen({ navigation }: Props) {
         if (delta > 0) addResource(r, delta);
         earnedSnap.current[r] = sim.earned[r];
       });
+      // deduct supplies actually consumed during the night from the stockpile
+      const sp = sim.spent;
+      const usedAmmo = sp.ammo - spentSnap.current.ammo;
+      const usedRockets = sp.rockets - spentSnap.current.rockets;
+      const usedComponents = sp.components - spentSnap.current.components;
+      if (usedAmmo > 0) addIntermediate('ammo', -usedAmmo);
+      if (usedRockets > 0) addIntermediate('rockets', -usedRockets);
+      if (usedComponents > 0) addIntermediate('advancedComponents', -usedComponents);
+      spentSnap.current = { ammo: sp.ammo, rockets: sp.rockets, components: sp.components };
+      // field medicine: a standing medbay patches the survivor up at dawn
+      const hasMedbay = buildingsRef.current.some((b) => b.type === 'medbay' && b.hp > 0);
+      if (hasMedbay) {
+        sim.player.hp = Math.min(sim.player.maxHp, sim.player.hp + sim.player.maxHp * 0.4);
+      }
       sim.encountered.forEach((id) => unlockCodex(id as Parameters<typeof unlockCodex>[0]));
       recordNightSurvived(survivedNight, killed);
       applyBattleResult(sim.snapshotBuildingHp());
@@ -193,6 +300,19 @@ export function WorldScreen({ navigation }: Props) {
     sim.syncBuildings(buildings);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [buildings]);
+
+  // crafted supplies flow into the night sim (only while it's safe to do so —
+  // at night the sim tracks its own consumption and must not be overwritten)
+  useEffect(() => {
+    if (sim.phase === 'day' || sim.phase === 'dawn') {
+      sim.setSupplies({
+        ammo: intermediates.ammo,
+        rockets: intermediates.rockets,
+        components: intermediates.advancedComponents,
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [intermediates]);
 
   // regrowth + music + periodic world autosave (the world persists fully —
   // leaving and re-entering resumes exactly where you left off)
@@ -249,7 +369,30 @@ export function WorldScreen({ navigation }: Props) {
     const now = Date.now();
     if (now - harvestCdRef.current < 360) return;
     const { tree, rock } = nearestNode();
-    if (!tree && !rock) return;
+    if (!tree && !rock) {
+      // universal interact: no node nearby → open the closest building's panel
+      const px = sim.player.x;
+      const py = sim.player.y;
+      let best: PlacedBuilding | undefined;
+      let bestD = TILE * 1.8;
+      for (const b of buildingsRef.current) {
+        if (b.type === 'shelter') continue;
+        const def = BUILDINGS[b.type];
+        const bx = (b.origin.col + def.size.w / 2) * TILE;
+        const by = (b.origin.row + def.size.h / 2) * TILE;
+        const d = Math.hypot(px - bx, py - by);
+        if (d < bestD) {
+          bestD = d;
+          best = b;
+        }
+      }
+      if (best) {
+        const id = best.id;
+        setSelectedBuildingId((cur) => (cur === id ? null : id));
+        hapticSelect();
+      }
+      return;
+    }
     harvestCdRef.current = now;
     swingUntilRef.current = now + 280;
 
@@ -260,6 +403,7 @@ export function WorldScreen({ navigation }: Props) {
       const next = startTreeFall(tree.id);
       playSfx('building_hit');
       hapticLight();
+      sim.burstAt(cx, cy - 14, 5, 'debris');
       if (next?.state === 'falling') {
         setTimeout(() => {
           finishTreeFall(tree.id);
@@ -274,6 +418,7 @@ export function WorldScreen({ navigation }: Props) {
       const next = mineRock(rock.id);
       playSfx('building_hit');
       hapticLight();
+      sim.burstAt(cx, cy - 6, 5, 'spark');
       if (next?.state === 'depleted') {
         itemsRef.current.push({
           id: `ore_${rock.id}_${now}`,
@@ -313,9 +458,14 @@ export function WorldScreen({ navigation }: Props) {
         const cx = (camp.origin.col + 1) * TILE;
         const cy = (camp.origin.row + 1) * TILE;
         if (Math.hypot(p.x - cx, p.y - cy) < TILE * 1.7) {
-          if (carrying.wood) addResource('wood', carrying.wood * 3);
-          if (carrying.stone) addResource('stone', carrying.stone * 3);
-          if (carrying.scrap) addResource('scrap', carrying.scrap * 2);
+          const addCapped = (type: ResourceType, amount: number) => {
+            const cur = useGameStore.getState().resources[type];
+            const room = Math.max(0, capsRef.current[type] - cur);
+            if (room > 0) addResource(type, Math.min(amount, room));
+          };
+          if (carrying.wood) addCapped('wood', carrying.wood * 3);
+          if (carrying.stone) addCapped('stone', carrying.stone * 3);
+          if (carrying.scrap) addCapped('scrap', carrying.scrap * 2);
           carryingRef.current = { wood: 0, stone: 0, scrap: 0 };
           playSfx('building_upgrade');
           hapticMedium();
@@ -479,6 +629,26 @@ export function WorldScreen({ navigation }: Props) {
     sim.step(dt);
     updateCarry();
 
+    // HoI4-style production chains: work buildings generate resources during
+    // daylight (batched ~1/s so the store isn't hammered every frame)
+    if (sim.phase === 'day' || sim.phase === 'dusk') {
+      prodAccRef.current += dt;
+      if (prodAccRef.current >= 1) {
+        const st = useGameStore.getState();
+        st.setResources(
+          tickProduction(
+            st.resources,
+            buildingsRef.current,
+            prodAccRef.current,
+            shelterLevelRef.current,
+            modsRef.current.production,
+            modsRef.current.resourceCap,
+          ),
+        );
+        prodAccRef.current = 0;
+      }
+    }
+
     // adaptive music on phase change
     if (sim.phase !== phaseRef.current) {
       phaseRef.current = sim.phase;
@@ -499,6 +669,18 @@ export function WorldScreen({ navigation }: Props) {
 
   const frame = useGameLoop(step, !gameOver);
 
+  // dusk warning banner + auto-close the build panel when darkness falls
+  const phase = sim.phase;
+  useEffect(() => {
+    if (phase !== 'dusk') return;
+    setBuildOpen(false);
+    setDuskBanner(true);
+    hapticMedium();
+    const t = setTimeout(() => setDuskBanner(false), 3500);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phase]);
+
   const restartRun = () => {
     startNewRun();
     resetLayout();
@@ -508,12 +690,40 @@ export function WorldScreen({ navigation }: Props) {
   // ---- derived HUD values ------------------------------------------------------
   const mag = sim.magazine;
   const prog = sim.progress;
-  // a compact key that only changes when the set of affordable buildings flips,
-  // so the memoized BuildDock doesn't rebuild its Skia icons every frame
-  const affordKey = BUILD_MENU.map((t) => (canAfford(BUILDINGS[t].buildCost) ? '1' : '0')).join('');
+  // a compact key that only changes when per-resource affordability or research
+  // locks flip, so the memoized BuildDock doesn't rebuild its Skia icons every frame
+  const affordKey = BUILD_MENU.map((t) => {
+    const gate = BUILDING_RESEARCH_GATE[t];
+    if (gate && !mods.unlockedBuildings.has(t)) return 'L';
+    return (Object.entries(BUILDINGS[t].buildCost) as [ResourceType, number][])
+      .map(([k, v]) => (resources[k] >= v ? '1' : '0'))
+      .join('');
+  }).join('|');
   const isNight = sim.phase === 'night' || sim.phase === 'dusk';
   const carrying = carryingRef.current.wood + carryingRef.current.stone + carryingRef.current.scrap;
   const { tree: nearTree, rock: nearRock } = nearestNode();
+  const hpFrac = sim.player.hp / sim.player.maxHp;
+  // a building close enough for the universal interact button to open
+  const nearBuilding = useMemo(() => {
+    void frame;
+    const px = sim.player.x;
+    const py = sim.player.y;
+    let best: PlacedBuilding | undefined;
+    let bestD = TILE * 1.8;
+    for (const b of buildings) {
+      if (b.type === 'shelter') continue;
+      const def = BUILDINGS[b.type];
+      const bx = (b.origin.col + def.size.w / 2) * TILE;
+      const by = (b.origin.row + def.size.h / 2) * TILE;
+      const d = Math.hypot(px - bx, py - by);
+      if (d < bestD) {
+        bestD = d;
+        best = b;
+      }
+    }
+    return best;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [frame, buildings]);
   const swing = swingUntilRef.current > Date.now() ? (swingUntilRef.current - Date.now()) / 280 : 0;
   const selectedBuilding = selectedBuildingId ? buildings.find((b) => b.id === selectedBuildingId) : null;
   const selectedMaxHp = selectedBuilding
@@ -625,7 +835,7 @@ export function WorldScreen({ navigation }: Props) {
               ambient: sim.lightLevel,
               playerSwing: swing,
               playerCarrying: carrying,
-              playerRoll: sim.rollTime > 0 ? sim.rollTime / 0.38 : 0,
+              playerRoll: sim.rollProgress,
             }}
           />
         </View>
@@ -651,8 +861,8 @@ export function WorldScreen({ navigation }: Props) {
             ]}
           />
           <View>
-            <Text style={styles.clockDay}>День {night}</Text>
-            <Text style={styles.clockPhase}>{PHASE_LABEL[sim.phase]}</Text>
+            <Text style={styles.clockDay}>{T('world.day', { n: night })}</Text>
+            <Text style={styles.clockPhase}>{T(PHASE_KEY[sim.phase] ?? 'phase.day')}</Text>
           </View>
           {/* cycle progress arc (thin bar) */}
           <View style={styles.cycleBack}>
@@ -661,26 +871,43 @@ export function WorldScreen({ navigation }: Props) {
         </View>
 
         <View style={styles.resourceStrip}>
-          {RESOURCE_TYPES.map((r) => (
-            <View key={r} style={styles.resChip}>
-              <ResourceIcon type={r} size={22} />
-              <Text style={styles.resValue}>{Math.floor(resources[r])}</Text>
-            </View>
-          ))}
+          {RESOURCE_TYPES.map((r) => {
+            const atCap = Math.floor(resources[r]) >= caps[r];
+            return (
+              <View key={r} style={styles.resChip}>
+                <ResourceIcon type={r} size={22} />
+                <Text style={[styles.resValue, atCap && styles.resValueCap]}>
+                  {Math.floor(resources[r])}
+                </Text>
+              </View>
+            );
+          })}
         </View>
 
         <View style={styles.menuButtons} pointerEvents="box-none">
+          {!isNight && (
+            <Pressable
+              style={[styles.menuBtn, buildOpen && styles.menuBtnActive]}
+              onPress={() => {
+                setBuildOpen((o) => !o);
+                hapticSelect();
+              }}
+            >
+              <Text style={styles.menuBtnIcon}>⚒</Text>
+              <Text style={styles.menuBtnLabel}>{T('world.build')}</Text>
+            </Pressable>
+          )}
           <Pressable style={styles.menuBtn} onPress={() => navigation.navigate('Arsenal')}>
             <Text style={styles.menuBtnIcon}>⚔</Text>
-            <Text style={styles.menuBtnLabel}>Оружие</Text>
+            <Text style={styles.menuBtnLabel}>{T('world.weapons')}</Text>
           </Pressable>
           <Pressable style={styles.menuBtn} onPress={() => navigation.navigate('Research')}>
             <Text style={styles.menuBtnIcon}>⚗</Text>
-            <Text style={styles.menuBtnLabel}>Наука</Text>
+            <Text style={styles.menuBtnLabel}>{T('world.research')}</Text>
           </Pressable>
           <Pressable style={styles.menuBtn} onPress={() => navigation.navigate('MainMenu')}>
             <Text style={styles.menuBtnIcon}>☰</Text>
-            <Text style={styles.menuBtnLabel}>Меню</Text>
+            <Text style={styles.menuBtnLabel}>{T('world.menu')}</Text>
           </Pressable>
         </View>
       </View>
@@ -688,18 +915,39 @@ export function WorldScreen({ navigation }: Props) {
       {/* ---- left: HP + stamina + minimap ---- */}
       <View style={styles.statusCol} pointerEvents="none">
         <View style={styles.hpBack}>
-          <View style={[styles.hpFill, { width: `${(sim.player.hp / sim.player.maxHp) * 100}%` }]} />
+          <View
+            style={[
+              styles.hpFill,
+              {
+                width: `${(sim.player.hp / sim.player.maxHp) * 100}%`,
+                backgroundColor:
+                  sim.player.hp / sim.player.maxHp > 0.5
+                    ? '#5fae54'
+                    : sim.player.hp / sim.player.maxHp > 0.25
+                      ? C.accent
+                      : C.danger,
+              },
+            ]}
+          />
         </View>
         <View style={styles.stamBack}>
           <View style={[styles.stamFill, { width: `${(sim.stamina / sim.maxStamina) * 100}%` }]} />
         </View>
         {isNight && (
           <Text style={styles.killText}>
-            Волна {Math.min(prog.wave, prog.waves)}/{prog.waves} · убито {prog.killed}
+            {T('world.wave', { a: Math.min(prog.wave, prog.waves), b: prog.waves, k: prog.killed })}
           </Text>
         )}
         <View style={styles.minimap}>
-          <Minimap sim={sim} frame={frame} />
+          <Minimap
+            sim={sim}
+            frame={frame}
+            trees={trees}
+            rocks={rocks}
+            cam={cameraRef.current}
+            viewW={width}
+            viewH={height}
+          />
         </View>
       </View>
 
@@ -722,20 +970,30 @@ export function WorldScreen({ navigation }: Props) {
             abilityCdTotal={30}
             abilityActiveLeft={sim.abilityActiveLeft}
             outOfSupply={sim.outOfSupply}
+            reserve={sim.supplies.ammo}
           />
         </View>
       )}
 
-      {/* ---- build dock (hidden while placing; memoized so the 6 Skia icons
-           don't rebuild every frame — only when affordability changes) ---- */}
-      {!placing && !isNight && (
-        <BuildDock affordKey={affordKey} onPick={startPlacing} canAfford={canAfford} />
-      )}
+      {/* ---- build dock (opened via the «Строить» button). NB: kept mounted
+           and hidden via style — late-mounting 15 Skia canvases evicts the
+           oldest WebGL contexts on web (game canvas goes white). ---- */}
+      <BuildDock
+        visible={buildOpen && !placing && !isNight}
+        affordKey={affordKey}
+        onPick={(t) => {
+          setBuildOpen(false);
+          startPlacing(t);
+        }}
+        onClose={() => setBuildOpen(false)}
+        resources={resources}
+        unlocked={mods.unlockedBuildings}
+      />
 
       {/* ---- placement confirm / cancel ---- */}
       {placing && (
         <View style={styles.placeBar} pointerEvents="box-none">
-          <Text style={styles.placeHint}>Перетащи здание на место</Text>
+          <Text style={styles.placeHint}>{T('world.dragPlace')}</Text>
           <View style={styles.placeBtns}>
             <Pressable style={[styles.placeBtn, styles.placeCancel]} onPress={cancelPlace}>
               <Text style={styles.placeBtnText}>✕</Text>
@@ -763,9 +1021,9 @@ export function WorldScreen({ navigation }: Props) {
           />
           {selectedBuilding.type === 'barracks' && (
             <View style={styles.productionPanel}>
-              <Text style={styles.productionTitle}>Производство казармы</Text>
+              <Text style={styles.productionTitle}>{T('world.barracksProd')}</Text>
               <Text style={styles.productionText}>
-                Защитники: {barracksGarrison} / {BUILDINGS.barracks.maxLevel}
+                {T('world.defenders', { a: barracksGarrison, b: BUILDINGS.barracks.maxLevel })}
               </Text>
               {barracksTrainingLeft > 0 && (
                 <View style={styles.productionProgressBack}>
@@ -783,12 +1041,84 @@ export function WorldScreen({ navigation }: Props) {
               >
                 <Text style={styles.productionBtnText}>
                   {barracksGarrison >= BUILDINGS.barracks.maxLevel
-                    ? 'Отряд укомплектован'
+                    ? T('world.squadFull')
                     : barracksTrainingLeft > 0
-                      ? 'Идёт тренировка'
-                    : `Тренировать: 🌿${barracksTrainCost.food ?? 0} ⚙️${barracksTrainCost.scrap ?? 0}`}
+                      ? T('world.training')
+                      : T('world.train', { food: barracksTrainCost.food ?? 0, scrap: barracksTrainCost.scrap ?? 0 })}
                 </Text>
               </Pressable>
+            </View>
+          )}
+          {!isNight && (BUILDING_RECIPES[selectedBuilding.type] ?? []).length > 0 && (
+            <View style={styles.productionPanel}>
+              <Text style={styles.productionTitle}>
+                {T('world.prod', { name: Tn('b', selectedBuilding.type, BUILDINGS[selectedBuilding.type].name) })}
+              </Text>
+              {(BUILDING_RECIPES[selectedBuilding.type] ?? []).map((out) => {
+                const recipe = PRODUCTION_RECIPES.find((r) => r.output === out);
+                if (!recipe) return null;
+                const scale = out === 'ammo' ? mods.ammoCost : 1;
+                const resCosts = (Object.entries(recipe.inputs) as [ResourceType, number][]).map(
+                  ([k, v]) => [k, Math.max(1, Math.ceil(v * scale))] as const,
+                );
+                const intCosts = recipe.intermediateInputs
+                  ? (Object.entries(recipe.intermediateInputs) as [IntermediateType, number][])
+                  : [];
+                const okOne =
+                  resCosts.every(([k, v]) => resources[k] >= v) &&
+                  intCosts.every(([k, v]) => intermediates[k] >= v);
+                const doCraft = (count: number) => {
+                  const made = craft(out, count, scale);
+                  if (made > 0) {
+                    playSfx('building_upgrade');
+                    hapticLight();
+                  } else {
+                    playSfx('ui_error');
+                    hapticError();
+                  }
+                };
+                return (
+                  <View key={out} style={styles.craftRow}>
+                    <View style={styles.craftInfo}>
+                      <Text style={styles.craftName}>
+                        {T(INTERMEDIATE_KEY[out])} · {Math.floor(intermediates[out])}
+                      </Text>
+                      <View style={styles.costRow}>
+                        {resCosts.map(([k, v]) => (
+                          <View key={k} style={styles.costItem}>
+                            <ResourceIcon type={k} size={13} />
+                            <Text style={[styles.costText, resources[k] < v && styles.costTextBad]}>
+                              {v}
+                            </Text>
+                          </View>
+                        ))}
+                        {intCosts.map(([k, v]) => (
+                          <View key={k} style={styles.costItem}>
+                            <Text style={styles.costText}>{INTERMEDIATE_LABEL[k]}</Text>
+                            <Text
+                              style={[styles.costText, intermediates[k] < v && styles.costTextBad]}
+                            >
+                              {v}
+                            </Text>
+                          </View>
+                        ))}
+                      </View>
+                    </View>
+                    <Pressable
+                      style={[styles.craftBtn, !okOne && styles.productionBtnDisabled]}
+                      onPress={() => doCraft(1)}
+                    >
+                      <Text style={styles.productionBtnText}>+1</Text>
+                    </Pressable>
+                    <Pressable
+                      style={[styles.craftBtn, !okOne && styles.productionBtnDisabled]}
+                      onPress={() => doCraft(5)}
+                    >
+                      <Text style={styles.productionBtnText}>+5</Text>
+                    </Pressable>
+                  </View>
+                );
+              })}
             </View>
           )}
         </View>
@@ -804,7 +1134,7 @@ export function WorldScreen({ navigation }: Props) {
               hapticMedium();
             }}
           >
-            <Text style={styles.abilityText}>СПОС.</Text>
+            <Text style={styles.abilityText}>{T('hud.ability')}</Text>
           </Pressable>
         )}
         <Pressable
@@ -813,7 +1143,7 @@ export function WorldScreen({ navigation }: Props) {
             if (sim.roll(input.current.mx, input.current.my)) hapticLight();
           }}
         >
-          <Text style={styles.rollText}>КУВЫРОК</Text>
+          <Text style={styles.rollText}>{T('hud.roll')}</Text>
         </Pressable>
         {isNight ? (
           <Pressable
@@ -824,42 +1154,59 @@ export function WorldScreen({ navigation }: Props) {
             }}
             onPressOut={() => (input.current.firing = false)}
           >
-            <Text style={styles.fireText}>ОГОНЬ</Text>
+            <Text style={styles.fireText}>{T('hud.fire')}</Text>
           </Pressable>
         ) : (
           <Pressable
-            style={[styles.harvestBtn, !nearTree && !nearRock && styles.btnDim]}
+            style={[styles.harvestBtn, !nearTree && !nearRock && !nearBuilding && styles.btnDim]}
             onPress={harvest}
           >
-            <Text style={styles.fireText}>{nearRock ? 'ДОБЫТЬ' : 'РУБИТЬ'}</Text>
+            <Text style={styles.fireText}>{T('hud.action')}</Text>
+            <Text style={styles.interactHint}>
+              {nearTree ? '🪓' : nearRock ? '⛏' : nearBuilding ? '🔧' : '·'}
+            </Text>
           </Pressable>
         )}
       </View>
 
+      {/* ---- low-HP warning vignette ---- */}
+      {hpFrac < 0.35 && !gameOver && (
+        <View
+          pointerEvents="none"
+          style={[styles.lowHpVignette, { opacity: Math.min(0.9, (0.35 - hpFrac) * 3) }]}
+        />
+      )}
+
+      {/* ---- dusk warning banner ---- */}
+      {duskBanner && !gameOver && (
+        <View style={styles.dawnWrap} pointerEvents="none">
+          <Text style={styles.duskTitle}>{T('world.duskTitle')}</Text>
+          <Text style={styles.dawnSub}>{T('world.duskSub')}</Text>
+        </View>
+      )}
+
       {/* ---- dawn banner ---- */}
       {dawnBanner && (
         <View style={styles.dawnWrap} pointerEvents="none">
-          <Text style={styles.dawnTitle}>РАССВЕТ</Text>
-          <Text style={styles.dawnSub}>
-            Ночь {dawnBanner.night} пережита · убито {dawnBanner.killed}
-          </Text>
+          <Text style={styles.dawnTitle}>{T('world.dawnTitle')}</Text>
+          <Text style={styles.dawnSub}>{T('world.dawnSub', { n: dawnBanner.night, k: dawnBanner.killed })}</Text>
         </View>
       )}
 
       {/* ---- game over ---- */}
       {gameOver && (
         <View style={styles.overWrap}>
-          <Text style={styles.overTitle}>ТЫ ПАЛ</Text>
+          <Text style={styles.overTitle}>{T('world.fellTitle')}</Text>
           <Text style={styles.overSub}>
-            {gameOver.cause === 'shelter' ? 'Костёр погас. Лагерь пал.' : 'Тьма забрала тебя.'}
-            {'\n'}Продержался ночей: {night - 1}. Потеряно 30% ресурсов.
-            {'\n'}Технологии и оружие сохранены.
+            {gameOver.cause === 'shelter' ? T('world.fellCamp') : T('world.fellDark')}
+            {'\n'}{T('world.fellStats', { n: night - 1 })}
+            {'\n'}{T('world.fellKeep')}
           </Text>
           <Pressable style={styles.overBtn} onPress={restartRun}>
-            <Text style={styles.overBtnText}>Начать заново (NG+)</Text>
+            <Text style={styles.overBtnText}>{T('world.ngPlus')}</Text>
           </Pressable>
           <Pressable style={[styles.overBtn, styles.overGhostBtn]} onPress={() => navigation.replace('MainMenu')}>
-            <Text style={styles.overBtnText}>В меню</Text>
+            <Text style={styles.overBtnText}>{T('world.menu')}</Text>
           </Pressable>
         </View>
       )}
@@ -883,37 +1230,87 @@ export function WorldScreen({ navigation }: Props) {
  * its 6 Skia `BuildingIcon` canvases aren't rebuilt on every game frame.
  */
 const BuildDock = memo(function BuildDock({
+  visible,
   affordKey,
   onPick,
-  canAfford,
+  onClose,
+  resources,
+  unlocked,
 }: {
+  visible: boolean;
   affordKey: string;
   onPick: (t: BuildingType) => void;
-  canAfford: (cost: Partial<Record<ResourceType, number>>) => boolean;
+  onClose: () => void;
+  resources: ResourceBag;
+  unlocked: Set<BuildingType>;
 }) {
   void affordKey;
   return (
-    <View style={styles.buildDock} pointerEvents="box-none">
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.buildCards}>
+    <View
+      style={[styles.buildDock, !visible && styles.buildDockHidden]}
+      pointerEvents={visible ? 'box-none' : 'none'}
+    >
+      <View style={styles.buildDockHeader}>
+        <Text style={styles.buildDockTitle}>{tGlobal('world.buildTitle')}</Text>
+        <Pressable style={styles.buildDockClose} onPress={onClose} hitSlop={10}>
+          <Text style={styles.buildDockCloseText}>✕</Text>
+        </Pressable>
+      </View>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.buildCards}
+      >
         {BUILD_MENU.map((type) => {
           const def = BUILDINGS[type];
-          const affordable = canAfford(def.buildCost);
+          const gate = BUILDING_RESEARCH_GATE[type];
+          const locked = !!gate && !unlocked.has(type);
+          const costs = Object.entries(def.buildCost) as [ResourceType, number][];
+          const affordable = costs.every(([k, v]) => resources[k] >= v);
           return (
-            <Pressable key={type} onPress={() => onPick(type)} style={[styles.buildSlot, !affordable && styles.buildSlotDisabled]}>
-              <BuildingIcon type={type} level={1} size={48} />
-              <Text style={styles.slotName} numberOfLines={1}>{def.name}</Text>
-              <Text style={[styles.slotCost, !affordable && styles.slotCostBad]} numberOfLines={1}>
-                {(Object.entries(def.buildCost) as [ResourceType, number][])
-                  .map(([k, v]) => `${RESOURCE_LABEL[k]}${v}`)
-                  .join(' ')}
+            <Pressable
+              key={type}
+              onPress={() => {
+                if (locked) {
+                  playSfx('ui_error');
+                  hapticError();
+                } else {
+                  onPick(type);
+                }
+              }}
+              style={[
+                styles.buildSlot,
+                !affordable && !locked && styles.buildSlotDisabled,
+                locked && styles.buildSlotLocked,
+              ]}
+            >
+              <BuildingIcon type={type} level={1} size={40} />
+              <Text style={styles.slotName} numberOfLines={1}>
+                {tnGlobal('b', type, def.name)}
               </Text>
+              {locked && gate ? (
+                <Text style={styles.slotLockText} numberOfLines={1}>
+                  🔒 {tnGlobal('r', gate.id, gate.name)}
+                </Text>
+              ) : (
+                <View style={styles.costRow}>
+                  {costs.map(([k, v]) => (
+                    <View key={k} style={styles.costItem}>
+                      <ResourceIcon type={k} size={11} />
+                      <Text style={[styles.costText, resources[k] < v && styles.costTextBad]}>
+                        {v}
+                      </Text>
+                    </View>
+                  ))}
+                </View>
+              )}
             </Pressable>
           );
         })}
       </ScrollView>
     </View>
   );
-}, (prev, next) => prev.affordKey === next.affordKey);
+}, (prev, next) => prev.affordKey === next.affordKey && prev.visible === next.visible);
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: C.night },
@@ -949,6 +1346,7 @@ const styles = StyleSheet.create({
   },
   resChip: { flexDirection: 'row', alignItems: 'center', gap: 3, paddingHorizontal: 3 },
   resValue: { fontFamily: F.heading, color: C.text, fontSize: 16, minWidth: 20 },
+  resValueCap: { color: C.resource },
   menuButtons: { flexDirection: 'row', gap: 8, marginLeft: 'auto' },
   menuBtn: {
     alignItems: 'center',
@@ -963,13 +1361,30 @@ const styles = StyleSheet.create({
   },
   menuBtnIcon: { color: C.resource, fontSize: 18, lineHeight: 20 },
   menuBtnLabel: { fontFamily: F.heading, color: C.text, fontSize: 12, marginTop: 1 },
+  menuBtnActive: { backgroundColor: C.accent, borderColor: THEME.outline.color },
 
   // left status
   statusCol: { position: 'absolute', top: 78, left: 12, gap: 6 },
-  hpBack: { width: 190, height: 14, backgroundColor: C.hpBack, borderWidth: 2, borderColor: THEME.outline.color },
-  hpFill: { height: '100%', backgroundColor: C.blood },
-  stamBack: { width: 150, height: 8, backgroundColor: C.black, borderWidth: 1.5, borderColor: THEME.outline.color },
-  stamFill: { height: '100%', backgroundColor: '#5fae54' },
+  hpBack: {
+    width: 190,
+    height: 14,
+    backgroundColor: 'rgba(0,0,0,0.55)',
+    borderWidth: 2,
+    borderColor: THEME.outline.color,
+    borderRadius: 7,
+    overflow: 'hidden',
+  },
+  hpFill: { height: '100%', backgroundColor: '#5fae54', borderRadius: 5 },
+  stamBack: {
+    width: 150,
+    height: 8,
+    backgroundColor: 'rgba(0,0,0,0.55)',
+    borderWidth: 1.5,
+    borderColor: THEME.outline.color,
+    borderRadius: 4,
+    overflow: 'hidden',
+  },
+  stamFill: { height: '100%', backgroundColor: C.resource, borderRadius: 3 },
   killText: { fontFamily: F.body, color: C.textMuted, fontSize: 13 },
   minimap: { marginTop: 6, borderWidth: 1, borderColor: C.panelBorder, alignSelf: 'flex-start' },
 
@@ -978,23 +1393,71 @@ const styles = StyleSheet.create({
   weaponWrap: { position: 'absolute', bottom: 16, alignSelf: 'center' },
 
   // build dock
-  buildDock: { position: 'absolute', left: 180, right: 180, bottom: 12 },
-  buildCards: { gap: 10, alignItems: 'center', justifyContent: 'center', flexGrow: 1, paddingHorizontal: 4 },
+  buildDock: {
+    position: 'absolute',
+    left: 14,
+    right: 166,
+    bottom: 10,
+    backgroundColor: THEME.alpha.darkPanel,
+    borderWidth: THEME.outline.thin,
+    borderColor: C.panelBorder,
+    borderRadius: THEME.radius.sm,
+    paddingBottom: 6,
+  },
+  buildDockHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 10,
+    paddingTop: 6,
+    paddingBottom: 2,
+  },
+  buildDockTitle: { fontFamily: F.heading, color: C.resource, fontSize: 12, letterSpacing: 2 },
+  buildDockClose: {
+    width: 24,
+    height: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 12,
+    backgroundColor: THEME.alpha.black80,
+  },
+  buildDockCloseText: { color: C.text, fontSize: 13, fontFamily: F.heading },
+  buildDockHidden: { opacity: 0 },
+  buildCards: { gap: 8, alignItems: 'center', flexGrow: 1, paddingHorizontal: 4 },
   buildSlot: {
-    width: 86,
-    height: 100,
+    width: 78,
+    height: 96,
     borderRadius: THEME.radius.md,
     borderWidth: THEME.outline.width,
     borderColor: C.panelBorder,
     backgroundColor: THEME.alpha.darkPanel,
     alignItems: 'center',
-    paddingTop: 6,
+    paddingTop: 5,
     gap: 2,
   },
-  buildSlotDisabled: { opacity: 0.45 },
-  slotName: { fontFamily: F.heading, color: C.text, fontSize: 11, width: '96%', textAlign: 'center' },
-  slotCost: { fontFamily: F.body, color: C.resource, fontSize: 12 },
-  slotCostBad: { color: C.danger },
+  buildSlotDisabled: { opacity: 0.55 },
+  buildSlotLocked: { opacity: 0.6, borderColor: C.inactive, borderStyle: 'dashed' },
+  slotName: { fontFamily: F.heading, color: C.text, fontSize: 10, width: '94%', textAlign: 'center', flexShrink: 0 },
+  slotLockText: { fontFamily: F.body, color: C.inactive, fontSize: 9, width: '94%', textAlign: 'center' },
+  costRow: { flexDirection: 'row', alignItems: 'center', gap: 4, flexWrap: 'wrap', justifyContent: 'center', flexShrink: 0 },
+  costItem: { flexDirection: 'row', alignItems: 'center', gap: 2 },
+  costText: { fontFamily: F.heading, color: C.resource, fontSize: 11 },
+  costTextBad: { color: '#e25b50' },
+
+  // craft rows (workshop / garden production)
+  craftRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  craftInfo: { flex: 1, gap: 2 },
+  craftName: { fontFamily: F.body, color: C.text, fontSize: 13 },
+  craftBtn: {
+    width: 44,
+    height: 34,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: C.accent,
+    borderWidth: THEME.outline.width,
+    borderColor: THEME.outline.color,
+    borderRadius: THEME.radius.xs,
+  },
 
   // placement
   placeBar: { position: 'absolute', bottom: 18, alignSelf: 'center', alignItems: 'center', gap: 10 },
@@ -1090,6 +1553,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   fireText: { fontFamily: F.heading, color: C.text, fontSize: 19, letterSpacing: 1 },
+  interactHint: { fontSize: 16, marginTop: 2 },
   rollBtn: {
     width: 86,
     height: 86,
@@ -1125,6 +1589,20 @@ const styles = StyleSheet.create({
     textShadowRadius: 16,
   },
   dawnSub: { fontFamily: F.body, color: C.text, fontSize: 18, marginTop: 6 },
+  duskTitle: {
+    fontFamily: F.display,
+    color: C.danger,
+    fontSize: 52,
+    letterSpacing: 4,
+    textShadowColor: THEME.alpha.black80,
+    textShadowRadius: 16,
+  },
+  lowHpVignette: {
+    ...StyleSheet.absoluteFillObject,
+    borderWidth: 34,
+    borderColor: 'rgba(150, 20, 20, 0.55)',
+    borderRadius: 48,
+  },
 
   // game over
   overWrap: {

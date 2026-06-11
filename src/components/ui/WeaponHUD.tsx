@@ -3,6 +3,7 @@ import { COLORS, FONTS } from '@/constants/gameConfig';
 import { WEAPONS } from '@/constants/weapons';
 import type { WeaponId } from '@/types';
 import { THEME } from '@/theme';
+import { useT, useTn } from '@/i18n/useT';
 
 interface WeaponHUDProps {
   weapon: WeaponId;
@@ -13,6 +14,8 @@ interface WeaponHUDProps {
   abilityCdTotal: number;
   abilityActiveLeft?: number;
   outOfSupply?: boolean;
+  /** Remaining ammo stockpile beyond the magazine (world mode). */
+  reserve?: number;
 }
 
 /** Bottom-center weapon readout: name, magazine, reload, ability cooldown. */
@@ -25,7 +28,10 @@ export function WeaponHUD({
   abilityCdTotal,
   abilityActiveLeft = 0,
   outOfSupply = false,
+  reserve,
 }: WeaponHUDProps) {
+  const t = useT();
+  const tn = useTn();
   const def = WEAPONS[weapon];
   const reloading = reloadProgress < 1;
   const abilityActive = abilityActiveLeft > 0;
@@ -50,11 +56,12 @@ export function WeaponHUD({
             />
           </View>
           <Text style={styles.mag}>
-            {reloading ? 'ПЕРЕЗАРЯДКА' : `${magCurrent}/${magSize}`}
+            {reloading ? t('hud.reload') : `${magCurrent}/${magSize}`}
+            {!reloading && reserve !== undefined ? t('hud.reserve', { n: reserve }) : ''}
           </Text>
         </View>
       ) : (
-        <Text style={styles.mag}>ближний бой</Text>
+        <Text style={styles.mag}>{t('hud.melee')}</Text>
       )}
       <View style={styles.abilityRow}>
         <View style={styles.abilityBack}>
@@ -71,7 +78,7 @@ export function WeaponHUD({
             { color: abilityActive ? COLORS.accent : abilityReady ? COLORS.resource : COLORS.inactive },
           ]}
         >
-          {abilityActive ? `▶ ${def.ability.name} ${abilityActiveLeft.toFixed(1)}с` : def.ability.name}
+          {abilityActive ? t('hud.abilityActive', { name: tn('a', def.ability.id, def.ability.name), s: abilityActiveLeft.toFixed(1) }) : tn('a', def.ability.id, def.ability.name)}
         </Text>
       </View>
     </View>

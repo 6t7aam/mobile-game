@@ -47,8 +47,11 @@ interface GameState {
   loseResourceFraction: (fraction: number) => void;
 
   addIntermediate: (type: IntermediateType, amount: number) => void;
-  /** Run a production recipe `count` times if inputs are available. Returns crafted units. */
-  craft: (output: IntermediateType, count: number) => number;
+  /**
+   * Run a production recipe `count` times if inputs are available. Returns
+   * crafted units. `inputScale` discounts base-resource inputs (research).
+   */
+  craft: (output: IntermediateType, count: number, inputScale?: number) => number;
 
   setActiveResearch: (id: string, days: number) => void;
   tickResearch: (days: number) => string | null;
@@ -122,15 +125,16 @@ export const useGameStore = create<GameState>()(
           },
         })),
 
-      craft: (output, count) => {
+      craft: (output, count, inputScale = 1) => {
         const recipe = PRODUCTION_RECIPES.find((r) => r.output === output);
         if (!recipe) return 0;
+        const scaled = (v: number) => Math.max(1, Math.ceil(v * inputScale));
         let made = 0;
         for (let i = 0; i < count; i++) {
           const s = get();
           // check base-resource inputs
           const okRes = (Object.entries(recipe.inputs) as [ResourceType, number][]).every(
-            ([k, v]) => s.resources[k] >= v,
+            ([k, v]) => s.resources[k] >= scaled(v),
           );
           // check intermediate inputs (e.g. rockets need components + explosives)
           const okInt = recipe.intermediateInputs
@@ -142,7 +146,7 @@ export const useGameStore = create<GameState>()(
           set((st) => {
             const res = { ...st.resources };
             (Object.entries(recipe.inputs) as [ResourceType, number][]).forEach(([k, v]) => {
-              res[k] -= v;
+              res[k] -= scaled(v);
             });
             const inter = { ...st.intermediates };
             if (recipe.intermediateInputs) {
@@ -175,7 +179,7 @@ export const useGameStore = create<GameState>()(
       },
     }),
     {
-      name: 'ashen-game',
+      name: 'holdouts-game',
       storage: createJSONStorage(() => AsyncStorage),
       version: 1,
     },

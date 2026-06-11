@@ -1,4 +1,5 @@
-import { Canvas, Picture, Skia, type SkCanvas } from '@shopify/react-native-skia';
+import { Image } from 'react-native';
+import { Skia, drawAsImageFromPicture, type SkCanvas } from '@shopify/react-native-skia';
 
 import type { BuildingType } from '@/types';
 import { THEME } from '@/theme';
@@ -7,25 +8,39 @@ const C = THEME.colors;
 const OUTLINE = THEME.outline;
 const U = 72; // icons authored on a 72px grid
 
+// Rasterized once per (type, level, size) and cached: a live Skia <Canvas> per
+// icon would each hold a WebGL context (browsers cap ~16) and waste GPU memory.
+const RASTER_SCALE = 3;
+const cache = new Map<string, string>();
+
+function rasterIcon(type: BuildingType, level: number, size: number, plate: boolean): string {
+  const key = `${type}-${level}-${size}-${plate}`;
+  let uri = cache.get(key);
+  if (!uri) {
+    const px = size * RASTER_SCALE;
+    const rec = Skia.PictureRecorder();
+    const c = rec.beginRecording(Skia.XYWHRect(0, 0, px, px));
+    c.scale(px / U, px / U);
+    if (plate) drawPlate(c, type);
+    drawIcon(c, type, level);
+    const img = drawAsImageFromPicture(rec.finishRecordingAsPicture(), { width: px, height: px });
+    uri = `data:image/png;base64,${img.encodeToBase64()}`;
+    cache.set(key, uri);
+  }
+  return uri;
+}
+
 /**
  * Crisp, instantly-readable building icons. Every type has a distinct
  * silhouette + accent so the build dock is legible at a glance. Drawn on a
  * rounded tinted plate with a consistent faux-3D shading direction.
  */
 export function BuildingIcon({ type, level, size = 72, plate = true }: { type: BuildingType; level: number; size?: number; plate?: boolean }) {
-  const picture = (() => {
-    const rec = Skia.PictureRecorder();
-    const c = rec.beginRecording(Skia.XYWHRect(0, 0, size, size));
-    c.scale(size / U, size / U);
-    if (plate) drawPlate(c, type);
-    drawIcon(c, type, level);
-    return rec.finishRecordingAsPicture();
-  })();
-
   return (
-    <Canvas style={{ width: size, height: size }}>
-      <Picture picture={picture} />
-    </Canvas>
+    <Image
+      source={{ uri: rasterIcon(type, level, size, plate) }}
+      style={{ width: size, height: size }}
+    />
   );
 }
 

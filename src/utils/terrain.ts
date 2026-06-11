@@ -23,10 +23,17 @@ export function isForestZone(col: number, row: number, cols = GRID.cols, rows = 
   return col < FOREST_BAND || col >= cols - FOREST_BAND || row < FOREST_BAND || row >= rows - FOREST_BAND;
 }
 
+/** Keep a clear camp radius around the central shelter — no trees on spawn. */
+export function isSpawnClearing(col: number, row: number): boolean {
+  const cc = GRID.cols / 2;
+  const cr = GRID.rows / 2;
+  return Math.abs(col - cc) < 5 && Math.abs(row - cr) < 5;
+}
+
 export function isInnerTreeCluster(col: number, row: number): boolean {
-  if (isForestZone(col, row)) return false;
+  if (isForestZone(col, row) || isSpawnClearing(col, row)) return false;
   const inNorthWestGrove = col >= 5 && col <= 6 && row >= 5 && row <= 6;
-  const inSouthEastGrove = col >= 14 && col <= 15 && row >= 13 && row <= 14;
+  const inSouthEastGrove = col >= 20 && col <= 21 && row >= 19 && row <= 20;
   return inNorthWestGrove || inSouthEastGrove || seededNoise(col, row, 77) > 0.965;
 }
 

@@ -1,5 +1,5 @@
 /**
- * Ashen Dominion — core type system.
+ * The Holdouts — core type system.
  *
  * Every gameplay subsystem (data constants, stores, combat, UI) draws its
  * shapes from this file. Keep it free of runtime values — pure types only,
@@ -226,7 +226,10 @@ export type WeaponId =
   | 'flamethrower'
   | 'thermobaricFlamethrower'
   | 'electricCannon'
-  | 'plasmaCannon';
+  | 'plasmaCannon'
+  // premium (shop-exclusive)
+  | 'goldenMinigun'
+  | 'infernoMinigun';
 
 /** How a weapon's projectiles behave on impact. */
 export type ProjectileBehavior =
@@ -253,6 +256,8 @@ export interface WeaponDef {
   id: WeaponId;
   name: string;
   branch: WeaponBranch;
+  /** Shop-exclusive: bought with crystals, hidden from the research path. */
+  premium?: boolean;
   /** Weapons that must be owned before this one can be purchased. */
   prerequisites: WeaponId[];
   behavior: ProjectileBehavior;

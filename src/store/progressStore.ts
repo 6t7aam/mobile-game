@@ -100,7 +100,7 @@ export const useProgressStore = create<ProgressState>()(
         }),
     }),
     {
-      name: 'ashen-progress',
+      name: 'holdouts-progress',
       storage: createJSONStorage(() => AsyncStorage),
       version: 1,
     },

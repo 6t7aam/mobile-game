@@ -17,9 +17,9 @@ import { usePlayerStore } from '@/store/playerStore';
 import { useProgressStore } from '@/store/progressStore';
 
 export const SLOT_COUNT = 3;
-const SLOT_KEY = (id: number) => `ashen-slot-${id}`;
-const META_KEY = 'ashen-slot-meta';
-const ACTIVE_KEY = 'ashen-slot-active';
+const SLOT_KEY = (id: number) => `holdouts-slot-${id}`;
+const META_KEY = 'holdouts-slot-meta';
+const ACTIVE_KEY = 'holdouts-slot-active';
 
 export interface SlotMeta {
   id: number;

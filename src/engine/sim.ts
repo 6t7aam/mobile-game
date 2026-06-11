@@ -192,11 +192,17 @@ export class BattleSim {
   rollTime = 0;
   private rollDirX = 0;
   private rollDirY = 0;
-  private static readonly ROLL_DURATION = 0.38;
-  private static readonly ROLL_SPEED = 420;
+  private static readonly ROLL_DURATION = 0.32;
+  private static readonly ROLL_SPEED = 290;
   private static readonly ROLL_COST = 30;
 
   private hitCb: HitCallbacks;
+
+  /** UI hook: called whenever a friendly weapon actually fires (sfx). */
+  onShot?: (def: WeaponDef) => void;
+
+  /** UI hook: an enemy died (sfx). */
+  onEnemyDeath?: () => void;
 
   constructor(opts: {
     night: number;
@@ -290,6 +296,16 @@ export class BattleSim {
     };
   }
 
+  /**
+   * Push freshly crafted supplies into a running sim (world mode: the player
+   * can craft ammo at the workshop during the day and fight with it at night).
+   */
+  setSupplies(s: { ammo: number; rockets: number; components: number }): void {
+    this.ammo = s.ammo;
+    this.rockets = s.rockets;
+    this.components = s.components;
+  }
+
   // ---- input from controls -------------------------------------------------
 
   setFiring(on: boolean): void {
@@ -301,13 +317,24 @@ export class BattleSim {
     this.player.facing = dir;
   }
 
+  /** Seconds until the next footstep dust puff while running. */
+  private footstepTimer = 0;
+
   moveBy(dx: number, dy: number, dt: number): void {
     const speed = 150;
     const nextX = clampWorld(this.player.x + dx * speed * dt, WORLD.width);
     if (!this.playerHitsBuilding(nextX, this.player.y)) this.player.x = nextX;
     const nextY = clampWorld(this.player.y + dy * speed * dt, WORLD.height);
     if (!this.playerHitsBuilding(this.player.x, nextY)) this.player.y = nextY;
-    if (dx !== 0 || dy !== 0) this.player.facing = Math.atan2(dy, dx);
+    if (dx !== 0 || dy !== 0) {
+      this.player.facing = Math.atan2(dy, dx);
+      // little dust puffs at the heels while running (Escapists-style juice)
+      this.footstepTimer -= dt * Math.hypot(dx, dy);
+      if (this.footstepTimer <= 0) {
+        this.footstepTimer = 0.22;
+        spawnDust(this.particles, this.rng, this.player.x - dx * 6, this.player.y + 10 - dy * 6, 1);
+      }
+    }
   }
 
   private playerHitsBuilding(x: number, y: number): boolean {
@@ -327,6 +354,11 @@ export class BattleSim {
       if ((x - cx) * (x - cx) + (y - cy) * (y - cy) < r * r) return true;
     }
     return false;
+  }
+
+  /** Cosmetic particle burst for outside callers (harvest hits, pickups). */
+  burstAt(x: number, y: number, n: number, kind: ParticleEntity['kind']): void {
+    spawnBurst(this.particles, this.rng, x, y, n, kind);
   }
 
   triggerAbility(): void {
@@ -475,6 +507,11 @@ export class BattleSim {
   /** True while the player has roll i-frames. */
   get invulnerable(): boolean {
     return this.rollTime > 0;
+  }
+
+  /** Roll progress 1 → 0 (for render layers; avoids hardcoding the duration). */
+  get rollProgress(): number {
+    return this.rollTime > 0 ? this.rollTime / BattleSim.ROLL_DURATION : 0;
   }
 
   /**
@@ -1015,6 +1052,7 @@ export class BattleSim {
   }
 
   private onEnemyKilled(e: EnemyEntity): void {
+    this.onEnemyDeath?.();
     this.killedTotal++;
     this.nightKills++;
     this.encountered.add(e.boss ?? e.type);
@@ -1179,6 +1217,7 @@ export class BattleSim {
     friendly: boolean,
   ): void {
     if (!this.paySupply(def)) return;
+    this.onShot?.(def);
     spawnMuzzleFlash(this.particles, this.rng, x, y, dir);
     const dmgType: DamageType = weaponDamageType(def);
 

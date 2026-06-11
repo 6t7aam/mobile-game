@@ -5,18 +5,45 @@
  * Escapists-inspired chunky-outline art direction.
  */
 
-import { Canvas, Path, Group, Circle, Rect, Skia } from '@shopify/react-native-skia';
+import { Image } from 'react-native';
+import {
+  Path,
+  Group,
+  Circle,
+  Rect,
+  Skia,
+  drawAsPicture,
+  drawAsImageFromPicture,
+} from '@shopify/react-native-skia';
 import type { ResourceType } from '@/types';
 import { THEME } from '@/theme';
 
 const C = THEME.colors;
 
+// Icons are rasterized once (at 3x for retina) and cached as data URIs. A live
+// Skia <Canvas> per icon would create a WebGL context each — browsers cap those
+// at ~16, and dozens of GL surfaces are wasteful on device too.
+const RASTER_SCALE = 3;
+const cache = new Map<string, string>();
+
+function rasterIcon(type: ResourceType, size: number): string {
+  const key = `${type}-${size}`;
+  let uri = cache.get(key);
+  if (!uri) {
+    const px = size * RASTER_SCALE;
+    const pic = drawAsPicture(
+      <Group>{renderIcon(type, px)}</Group>,
+      { x: 0, y: 0, width: px, height: px },
+    );
+    const img = drawAsImageFromPicture(pic, { width: px, height: px });
+    uri = `data:image/png;base64,${img.encodeToBase64()}`;
+    cache.set(key, uri);
+  }
+  return uri;
+}
+
 export function ResourceIcon({ type, size = 22 }: { type: ResourceType; size?: number }) {
-  return (
-    <Canvas style={{ width: size, height: size }}>
-      <Group>{renderIcon(type, size)}</Group>
-    </Canvas>
-  );
+  return <Image source={{ uri: rasterIcon(type, size) }} style={{ width: size, height: size }} />;
 }
 
 function renderIcon(type: ResourceType, s: number) {
@@ -24,6 +51,8 @@ function renderIcon(type: ResourceType, s: number) {
   switch (type) {
     case 'wood':
       return woodIcon(u);
+    case 'stone':
+      return stoneIcon(u);
     case 'scrap':
       return scrapIcon(u);
     case 'fuel':
@@ -52,6 +81,21 @@ function woodIcon(u: number) {
           <Circle cx={l.x * u} cy={l.y * u} r={0.8 * u} color={C.woodDark} />
         </Group>
       ))}
+    </Group>
+  );
+}
+
+// a clustered grey boulder for stone
+function stoneIcon(u: number) {
+  return (
+    <Group>
+      <Circle cx={12 * u} cy={12 * u} r={7.5 * u} color={THEME.outline.color} />
+      <Circle cx={12 * u} cy={12 * u} r={6.4 * u} color={C.stone} />
+      <Circle cx={7 * u} cy={15.5 * u} r={4.6 * u} color={THEME.outline.color} />
+      <Circle cx={7 * u} cy={15.5 * u} r={3.6 * u} color={C.stoneSide} />
+      <Circle cx={16.5 * u} cy={16 * u} r={4.2 * u} color={THEME.outline.color} />
+      <Circle cx={16.5 * u} cy={16 * u} r={3.2 * u} color={C.stoneSide} />
+      <Circle cx={10.5 * u} cy={9.5 * u} r={2.6 * u} color={C.stoneTop} />
     </Group>
   );
 }

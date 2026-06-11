@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Pressable } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 
 import type { RootStackParamList } from '@/navigation/RootNavigator';
@@ -8,7 +8,8 @@ import { SettingRow, VolumeBar, Toggle, Choice } from '@/components/ui/SettingRo
 import { useProgressStore } from '@/store/progressStore';
 import { useBaseStore } from '@/store/baseStore';
 import { useGameStore } from '@/store/gameStore';
-import { useSettingsStore, type Language, type Quality } from '@/store/settingsStore';
+import { useSettingsStore, type Quality } from '@/store/settingsStore';
+import { LANGS } from '@/i18n/strings';
 import { useT } from '@/i18n/useT';
 import { hapticSelect } from '@/systems/haptics';
 
@@ -69,12 +70,11 @@ export function SettingsScreen({ navigation }: Props) {
           />
         </SettingRow>
         <SettingRow label={t('settings.language')}>
-          <Choice<Language>
-            options={['ru', 'en']}
-            value={s.language}
-            labels={{ ru: 'RU', en: 'EN' }}
-            onPick={s.setLanguage}
-          />
+          <Pressable style={styles.langBtn} onPress={() => navigation.navigate('Language')}>
+            <Text style={styles.langBtnText}>
+              {LANGS.find((l) => l.code === s.language)?.flag} {LANGS.find((l) => l.code === s.language)?.native}
+            </Text>
+          </Pressable>
         </SettingRow>
 
         <Text style={styles.sectionTitle}>{t('settings.statsTitle')}</Text>
@@ -99,4 +99,13 @@ const styles = StyleSheet.create({
   sectionTitle: { fontFamily: FONTS.heading, color: COLORS.text, fontSize: 18, marginTop: 20, marginBottom: 4 },
   stat: { fontFamily: FONTS.body, color: COLORS.resource, fontSize: 16, marginTop: 4 },
   danger: { marginTop: 32 },
+  langBtn: {
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: COLORS.accent,
+    backgroundColor: COLORS.panel,
+  },
+  langBtnText: { fontFamily: FONTS.heading, color: COLORS.text, fontSize: 15 },
 });

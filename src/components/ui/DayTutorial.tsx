@@ -18,6 +18,7 @@ import Animated, {
 
 import { COLORS, FONTS } from '@/constants/gameConfig';
 import { THEME } from '@/theme';
+import { useT } from '@/i18n/useT';
 
 export type TutorialStep = 'chop' | 'carry' | 'deliver' | 'build' | 'done';
 
@@ -28,15 +29,16 @@ interface DayTutorialProps {
   onSkip: () => void;
 }
 
-const TEXT: Record<TutorialStep, string> = {
-  chop: 'Подойди к дереву и руби его (кнопка «Рубить»), пока не упадёт.',
-  carry: 'Подбери упавшее бревно — просто пройди по нему.',
-  deliver: 'Отнеси брёвна к костру в центре, чтобы получить дерево.',
-  build: 'Открой панель снизу и построй стену для защиты на ночь.',
+const TEXT_KEY: Record<TutorialStep, string> = {
+  chop: 'tut.chop',
+  carry: 'tut.pickup',
+  deliver: 'tut.carry',
+  build: 'tut.build',
   done: '',
 };
 
 export function DayTutorial({ step, target, onSkip }: DayTutorialProps) {
+  const t = useT();
   const bob = useSharedValue(0);
   useEffect(() => {
     bob.value = withRepeat(withTiming(1, { duration: 700, easing: Easing.inOut(Easing.quad) }), -1, true);
@@ -61,9 +63,9 @@ export function DayTutorial({ step, target, onSkip }: DayTutorialProps) {
       {/* instruction banner */}
       <View style={styles.banner} pointerEvents="box-none">
         <Text style={styles.title}>Обучение</Text>
-        <Text style={styles.text}>{TEXT[step]}</Text>
+        <Text style={styles.text}>{t(TEXT_KEY[step])}</Text>
         <Text style={styles.skip} onPress={onSkip}>
-          Пропустить обучение
+          {t('tutorial.skip')}
         </Text>
       </View>
     </View>
@@ -74,13 +76,14 @@ const styles = StyleSheet.create({
   arrowWrap: { position: 'absolute' },
   arrow: { fontSize: 30, color: COLORS.accent, textShadowColor: THEME.outline.color, textShadowRadius: 4 },
   banner: {
+    // compact strip above the build dock so it never covers the play area
     position: 'absolute',
-    top: 64,
+    bottom: 112,
     alignSelf: 'center',
-    maxWidth: 520,
-    width: '90%',
-    paddingHorizontal: 18,
-    paddingVertical: 12,
+    maxWidth: 440,
+    width: '70%',
+    paddingHorizontal: 14,
+    paddingVertical: 8,
     backgroundColor: THEME.alpha.panel95,
     borderWidth: THEME.outline.width,
     borderColor: COLORS.accent,
@@ -88,7 +91,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 4,
   },
-  title: { fontFamily: FONTS.heading, color: COLORS.accent, fontSize: 13, letterSpacing: 1 },
-  text: { fontFamily: FONTS.body, color: COLORS.text, fontSize: 16, textAlign: 'center', lineHeight: 21 },
-  skip: { fontFamily: FONTS.body, color: COLORS.inactive, fontSize: 13, marginTop: 4 },
+  title: { fontFamily: FONTS.heading, color: COLORS.accent, fontSize: 12, letterSpacing: 1 },
+  text: { fontFamily: FONTS.body, color: COLORS.text, fontSize: 14, textAlign: 'center', lineHeight: 19 },
+  skip: { fontFamily: FONTS.body, color: COLORS.inactive, fontSize: 12, marginTop: 2, textDecorationLine: 'underline' },
 });

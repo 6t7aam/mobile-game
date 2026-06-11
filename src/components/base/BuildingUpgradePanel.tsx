@@ -8,6 +8,7 @@ import { BUILDINGS } from '@/constants/buildings';
 import { DarkButton } from '@/components/ui/DarkButton';
 import { BuildingIcon } from '@/components/base/BuildingIcon';
 import { THEME } from '@/theme';
+import { useT, useTn } from '@/i18n/useT';
 
 /** Resource cost to upgrade a building from its current level to the next. */
 export function upgradeCost(b: PlacedBuilding): Partial<ResourceBag> {
@@ -49,6 +50,8 @@ export function BuildingUpgradePanel({
   onToggleGate,
   onClose,
 }: PanelProps) {
+  const t = useT();
+  const tn = useTn();
   const def = BUILDINGS[building.type];
   const maxed = building.level >= def.maxLevel;
   const cost = upgradeCost(building);
@@ -70,39 +73,39 @@ export function BuildingUpgradePanel({
         </View>
         <View style={styles.headInfo}>
           <View style={styles.header}>
-            <Text style={styles.name}>{def.name}</Text>
+            <Text style={styles.name}>{tn('b', building.type, def.name)}</Text>
             <Text style={[styles.level, maxed && styles.levelMax]}>
-              {maxed ? 'МАКС' : `ур. ${building.level}/${def.maxLevel}`}
+              {maxed ? t('common.max') : t('bup.level', { a: building.level, b: def.maxLevel })}
             </Text>
           </View>
-          <Text style={styles.desc}>{def.description}</Text>
+          <Text style={styles.desc}>{tn('bd', building.type, def.description)}</Text>
           <Text style={styles.hp}>HP: {Math.round(building.hp)}/{hpMax}</Text>
         </View>
       </View>
 
       {!maxed && (
         <Text style={[styles.cost, !affordable && styles.costBad]}>
-          {affordable ? 'Улучшение: ' : 'Нужно ещё: '}
+          {affordable ? t('bup.upgrade') : t('bup.need')}
           {(Object.entries(cost) as [ResourceType, number][])
             .map(([k, v]) => `${RESOURCE_LABEL[k]}${v}`)
             .join('  ')}
         </Text>
       )}
-      {maxed && <Text style={styles.maxNote}>★ Максимальный уровень ★</Text>}
+      {maxed && <Text style={styles.maxNote}>{t('bup.maxNote')}</Text>}
 
       <View style={styles.actions}>
         {building.type === 'shelter' ? null : building.type === 'gate' ? (
           <DarkButton
-            label={building.open ? 'Закрыть' : 'Открыть'}
+            label={building.open ? t('bup.close') : t('bup.open')}
             variant="ghost"
             onPress={onToggleGate}
           />
         ) : (
-          <DarkButton label="Снести" variant="danger" onPress={onSell} />
+          <DarkButton label={t('bup.demolish')} variant="danger" onPress={onSell} />
         )}
         {!maxed && (
           <DarkButton
-            label={affordable ? 'Улучшить' : 'Нет ресурсов'}
+            label={affordable ? t('bup.doUpgrade') : t('bup.noRes')}
             disabled={!affordable}
             onPress={onUpgrade}
           />

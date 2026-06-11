@@ -18,6 +18,7 @@ import { GRID, WORLD } from '@/constants/gameConfig';
 import { BUILDINGS } from '@/constants/buildings';
 import { BOSSES } from '@/constants/enemies';
 import { THEME } from '@/theme';
+import { t as tr, tn as trn } from '@/i18n/useT';
 import {
   drawTile,
   drawBuilding,
@@ -27,6 +28,7 @@ import {
   drawWeapon,
   drawMuzzleFlash,
   drawText,
+  hash2,
 } from './sprites';
 import { getBattleFonts } from './fonts';
 
@@ -265,8 +267,13 @@ function computeOccupancy(sim: BattleSim): void {
  * side, chop marks while being harvested, and a tipping animation when felled.
  */
 function drawWorldTree(canvas: SkCanvas, tree: Tree, t: number): void {
-  const x = tree.tileX * TILE + TILE / 2;
-  const y = tree.tileY * TILE + TILE / 2;
+  // deterministic per-tree variation so the forest doesn't read as a copy-paste
+  // grid: each tree gets its own size, sub-tile offset and canopy tint.
+  const v1 = hash2(tree.tileX * 3 + 7, tree.tileY * 5 + 3);
+  const v2 = hash2(tree.tileX * 11 + 1, tree.tileY * 7 + 9);
+  const x = tree.tileX * TILE + TILE / 2 + (v1 - 0.5) * TILE * 0.45;
+  const y = tree.tileY * TILE + TILE / 2 + (v2 - 0.5) * TILE * 0.3;
+  const scale = 0.78 + v1 * 0.42;
   const fall =
     tree.state === 'falling' && tree.fallStartedAt
       ? Math.min(1, (Date.now() - tree.fallStartedAt) / 800)
@@ -275,35 +282,46 @@ function drawWorldTree(canvas: SkCanvas, tree: Tree, t: number): void {
 
   canvas.save();
   canvas.translate(x, y);
+  canvas.scale(scale, scale);
   if (fall > 0) canvas.rotate(tree.fallAngle * fall, 0, 0);
 
-  canvas.drawOval(Skia.XYWHRect(-14, 10, 28, 8), setSolid(C.black, 0.18));
+  canvas.drawOval(Skia.XYWHRect(-15, 10, 30, 9), setSolid(C.black, 0.18));
 
-  // straighter pixel trunk
-  canvas.drawRect(Skia.XYWHRect(-6, -20, 12, 29), setSolid(THEME.outline.color));
-  canvas.drawRect(Skia.XYWHRect(-4, -18, 8, 27), setSolid(C.woodSide));
-  canvas.drawRect(Skia.XYWHRect(-1, -18, 3, 27), setSolid(C.woodTop, 0.85));
-  for (let i = 0; i < 3; i++) canvas.drawRect(Skia.XYWHRect(-4, -12 + i * 8, 8, 2), setSolid(C.woodDark, 0.75));
+  // rounded cartoon trunk with a base flare
+  const trunk = Skia.Path.Make();
+  trunk.moveTo(-8, 9);
+  trunk.cubicTo(-4, 4, -4, -8, -3.5, -20);
+  trunk.lineTo(3.5, -20);
+  trunk.cubicTo(4, -8, 4, 4, 8, 9);
+  trunk.close();
+  canvas.drawPath(trunk, setSolid(C.woodSide));
+  canvas.drawPath(trunk, strokeSolid(THEME.outline.color, 2.4));
+  canvas.drawLine(-0.5, -18, 1.5, 6, strokeSolid(C.woodTop, 2.2));
 
-  // flatter blocky canopy inspired by top-down prison-yard trees.
+  // puffy blob canopy: overlapping outlined circles like a cartoon broccoli
   canvas.save();
   canvas.translate(sway, 0);
-  for (const [rx, ry, rw, rh] of [
-    [-22, -43, 44, 26],
-    [-18, -54, 36, 24],
-    [-28, -36, 24, 22],
-    [4, -36, 24, 22],
-  ] as const) {
-    canvas.drawRect(Skia.XYWHRect(rx - 2, ry - 2, rw + 4, rh + 4), setSolid(THEME.outline.color));
-    canvas.drawRect(Skia.XYWHRect(rx, ry, rw, rh), setSolid(C.forestDark));
+  const midTint = v2 > 0.66 ? C.leafDark : v2 > 0.33 ? C.forest : '#256b30';
+  const litTint = v1 > 0.5 ? C.leaf : '#7cb24e';
+  const blobs: ReadonlyArray<readonly [number, number, number]> = [
+    [-13, -36, 13],
+    [13, -36, 12],
+    [0, -50, 14],
+    [-19, -47, 10],
+    [18, -47, 9.5],
+    [0, -33, 13],
+  ];
+  for (const [bx, by, br] of blobs) canvas.drawCircle(bx, by, br + 2.2, setSolid(THEME.outline.color));
+  for (const [bx, by, br] of blobs) canvas.drawCircle(bx, by, br, setSolid(C.forestDark));
+  // mid + lit layers give it volume from the top-left light
+  for (const [bx, by, br] of [[-9, -41, 10], [9, -42, 9], [0, -49, 10]] as const) {
+    canvas.drawCircle(bx, by, br, setSolid(midTint));
   }
-  canvas.drawRect(Skia.XYWHRect(-17, -49, 34, 18), setSolid(C.forest));
-  canvas.drawRect(Skia.XYWHRect(-20, -42, 20, 12), setSolid(C.leaf));
-  canvas.drawRect(Skia.XYWHRect(2, -42, 18, 12), setSolid(C.leaf));
-  canvas.drawRect(Skia.XYWHRect(-12, -50, 8, 5), setSolid(C.grassLight, 0.75));
-  canvas.drawRect(Skia.XYWHRect(5, -45, 7, 4), setSolid(C.grassLight, 0.65));
-  canvas.drawRect(Skia.XYWHRect(-18, -33, 4, 4), setSolid(C.leafDark, 0.8));
-  canvas.drawRect(Skia.XYWHRect(15, -35, 4, 4), setSolid(C.leafDark, 0.8));
+  for (const [bx, by, br] of [[-10, -46, 6.5], [3, -52, 5.5], [11, -45, 4.5]] as const) {
+    canvas.drawCircle(bx, by, br, setSolid(litTint));
+  }
+  canvas.drawCircle(-12, -49, 2.4, setSolid(C.grassLight, 0.85));
+  canvas.drawCircle(6, -54, 1.9, setSolid(C.grassLight, 0.75));
   canvas.restore();
 
   // chop wedges on the trunk while being harvested
@@ -472,7 +490,7 @@ function drawOneEnemy(canvas: SkCanvas, sim: BattleSim, e: import('@/engine/enti
   if (e.boss) {
     const fonts = getBattleFonts();
     if (fonts) {
-      const name = BOSSES[e.boss]?.name ?? 'БОСС';
+      const name = (e.boss ? trn('boss', e.boss, BOSSES[e.boss]?.name ?? '') : '') || tr('world.boss');
       drawText(canvas, name.toUpperCase(), e.x, e.y - r - 18, fonts.large, C.offWhite);
     }
   }
@@ -575,7 +593,7 @@ function drawEnemies(canvas: SkCanvas, sim: BattleSim, t: number): void {
     if (e.boss) {
       const fonts = getBattleFonts();
       if (fonts) {
-        const name = BOSSES[e.boss]?.name ?? 'БОСС';
+        const name = (e.boss ? trn('boss', e.boss, BOSSES[e.boss]?.name ?? '') : '') || tr('world.boss');
         drawText(canvas, name.toUpperCase(), e.x, e.y - r - 18, fonts.large, C.offWhite);
       }
     }
@@ -655,12 +673,12 @@ function drawLightningBolt(canvas: SkCanvas, x0: number, y0: number, x1: number,
 
 function drawPlayer_(canvas: SkCanvas, sim: BattleSim, t: number, world?: WorldView): void {
   const p = sim.player;
-  // movement detected via velocity proxy: compare to last position cache
-  const moving = playerMoving(p.x, p.y);
+  // walk cycle driven by actual distance traveled — no more running in place
+  const { moving, phase } = playerWalk(p.x, p.y);
   const hurtFlash = p.hp < p.maxHp * 0.3 ? 0.3 + Math.sin(t * 8) * 0.3 : 0;
 
   // dodge roll: tucked spin along the dash (souls-style)
-  const rollT = world?.playerRoll ?? (sim.rollTime > 0 ? sim.rollTime / 0.38 : 0);
+  const rollT = world?.playerRoll ?? sim.rollProgress;
   if (rollT > 0) {
     canvas.save();
     canvas.translate(p.x, p.y);
@@ -673,7 +691,7 @@ function drawPlayer_(canvas: SkCanvas, sim: BattleSim, t: number, world?: WorldV
 
   const swing = world?.playerSwing ?? 0;
   const carrying = world?.playerCarrying ?? 0;
-  drawPlayer(canvas, p.x, p.y, p.facing, moving, t, hurtFlash, swing, carrying);
+  drawPlayer(canvas, p.x, p.y, p.facing, moving, t, hurtFlash, swing, carrying, phase);
 
   // weapon in hands (hidden mid-harvest-swing — the axe is drawn by the swing)
   if (swing <= 0) {
@@ -690,11 +708,15 @@ function drawPlayer_(canvas: SkCanvas, sim: BattleSim, t: number, world?: WorldV
 
 let lastPX = 0;
 let lastPY = 0;
-function playerMoving(x: number, y: number): boolean {
-  const m = Math.abs(x - lastPX) + Math.abs(y - lastPY) > 0.25;
+let walkPhase = 0;
+/** Advance the walk cycle by distance actually covered (~52px per stride). */
+function playerWalk(x: number, y: number): { moving: boolean; phase: number } {
+  const dist = Math.hypot(x - lastPX, y - lastPY);
   lastPX = x;
   lastPY = y;
-  return m;
+  const moving = dist > 0.25;
+  if (moving && dist < 60) walkPhase += dist / 52; // ignore teleports/respawns
+  return { moving, phase: walkPhase };
 }
 
 function drawParticles(canvas: SkCanvas, sim: BattleSim): void {

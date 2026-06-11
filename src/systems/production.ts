@@ -15,22 +15,33 @@ export function productionRates(buildings: PlacedBuilding[]): ResourceBag {
   for (const b of buildings) {
     const def = BUILDINGS[b.type];
     if (!def.produces || !def.productionRate) continue;
+    if (b.buildUntil && b.buildUntil > Date.now()) continue; // still under construction
+    if (b.hp <= 0) continue;
     const scaled = def.productionRate * (1 + def.scaling.outputPerLevel * (b.level - 1));
     rates[def.produces] += scaled;
   }
   return rates;
 }
 
-/** Effective caps for the current shelter level (+ optional research multiplier). */
-export function currentCaps(shelterLevel: number, capMult = 1): ResourceBag {
+/**
+ * Effective caps for the current shelter level (+ optional research multiplier
+ * and warehouses: each storage level adds +15% to all caps).
+ */
+export function currentCaps(shelterLevel: number, capMult = 1, storageLevels = 0): ResourceBag {
+  const mult = capMult * (1 + storageLevels * 0.15);
   return {
-    wood: Math.round(resourceCap(BASE_RESOURCE_CAP.wood, shelterLevel) * capMult),
-    stone: Math.round(resourceCap(BASE_RESOURCE_CAP.stone, shelterLevel) * capMult),
-    scrap: Math.round(resourceCap(BASE_RESOURCE_CAP.scrap, shelterLevel) * capMult),
-    fuel: Math.round(resourceCap(BASE_RESOURCE_CAP.fuel, shelterLevel) * capMult),
-    food: Math.round(resourceCap(BASE_RESOURCE_CAP.food, shelterLevel) * capMult),
-    energy: Math.round(resourceCap(BASE_RESOURCE_CAP.energy, shelterLevel) * capMult),
+    wood: Math.round(resourceCap(BASE_RESOURCE_CAP.wood, shelterLevel) * mult),
+    stone: Math.round(resourceCap(BASE_RESOURCE_CAP.stone, shelterLevel) * mult),
+    scrap: Math.round(resourceCap(BASE_RESOURCE_CAP.scrap, shelterLevel) * mult),
+    fuel: Math.round(resourceCap(BASE_RESOURCE_CAP.fuel, shelterLevel) * mult),
+    food: Math.round(resourceCap(BASE_RESOURCE_CAP.food, shelterLevel) * mult),
+    energy: Math.round(resourceCap(BASE_RESOURCE_CAP.energy, shelterLevel) * mult),
   };
+}
+
+/** Total levels of standing storages (cap bonus source). */
+export function storageLevels(buildings: PlacedBuilding[]): number {
+  return buildings.reduce((acc, b) => (b.type === 'storage' ? acc + b.level : acc), 0);
 }
 
 /**
@@ -46,7 +57,7 @@ export function tickProduction(
   capMult = 1,
 ): ResourceBag {
   const rates = productionRates(buildings);
-  const caps = currentCaps(shelterLevel, capMult);
+  const caps = currentCaps(shelterLevel, capMult, storageLevels(buildings));
   const next: ResourceBag = { ...resources };
   (Object.keys(next) as ResourceType[]).forEach((r) => {
     next[r] = Math.min(caps[r], next[r] + rates[r] * prodMult * dt);
