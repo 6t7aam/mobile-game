@@ -5,7 +5,8 @@
  * Escapists-inspired chunky-outline art direction.
  */
 
-import { Image } from 'react-native';
+import { useEffect, useState } from 'react';
+import { Image, View } from 'react-native';
 import {
   Path,
   Group,
@@ -25,25 +26,51 @@ const C = THEME.colors;
 // at ~16, and dozens of GL surfaces are wasteful on device too.
 const RASTER_SCALE = 3;
 const cache = new Map<string, string>();
+const pending = new Map<string, Promise<string>>();
 
-function rasterIcon(type: ResourceType, size: number): string {
+// Skia 2.x: drawAsPicture is async, so icons rasterize once in the background
+// and land in `cache`; afterwards every render is a synchronous cache hit.
+function rasterIcon(type: ResourceType, size: number): Promise<string> {
   const key = `${type}-${size}`;
-  let uri = cache.get(key);
-  if (!uri) {
+  const hit = cache.get(key);
+  if (hit) return Promise.resolve(hit);
+  let p = pending.get(key);
+  if (!p) {
     const px = size * RASTER_SCALE;
-    const pic = drawAsPicture(
-      <Group>{renderIcon(type, px)}</Group>,
-      { x: 0, y: 0, width: px, height: px },
-    );
-    const img = drawAsImageFromPicture(pic, { width: px, height: px });
-    uri = `data:image/png;base64,${img.encodeToBase64()}`;
-    cache.set(key, uri);
+    p = (async () => {
+      const pic = await drawAsPicture(
+        <Group>{renderIcon(type, px)}</Group>,
+        { x: 0, y: 0, width: px, height: px },
+      );
+      const img = drawAsImageFromPicture(pic, { width: px, height: px });
+      const uri = `data:image/png;base64,${img.encodeToBase64()}`;
+      cache.set(key, uri);
+      pending.delete(key);
+      return uri;
+    })();
+    pending.set(key, p);
   }
-  return uri;
+  return p;
 }
 
 export function ResourceIcon({ type, size = 22 }: { type: ResourceType; size?: number }) {
-  return <Image source={{ uri: rasterIcon(type, size) }} style={{ width: size, height: size }} />;
+  const key = `${type}-${size}`;
+  const [uri, setUri] = useState<string | null>(() => cache.get(key) ?? null);
+  useEffect(() => {
+    if (cache.get(key)) {
+      setUri(cache.get(key)!);
+      return;
+    }
+    let alive = true;
+    void rasterIcon(type, size).then((u) => {
+      if (alive) setUri(u);
+    });
+    return () => {
+      alive = false;
+    };
+  }, [key, type, size]);
+  if (!uri) return <View style={{ width: size, height: size }} />;
+  return <Image source={{ uri }} style={{ width: size, height: size }} />;
 }
 
 function renderIcon(type: ResourceType, s: number) {
