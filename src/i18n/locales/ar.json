@@ -1,5 +1,5 @@
 {
-"game.title": "سيادة الرماد",
+"game.title": "THE HOLDOUTS",
 "game.tagline": "كم ليلة ستصمد؟",
 "common.back": "‹ رجوع",
 "common.close": "إغلاق",
@@ -345,5 +345,12 @@
 "boss.swarm": "السرب",
 "boss.ironGuardian": "الحارس الحديدي",
 "boss.hiveMother": "أم الخلية",
-"acc.cloudOff": "السحابة غير متصلة"
+"acc.cloudOff": "السحابة غير متصلة",
+"menu.play": "العب",
+"menu.selectWorld": "اختر العالم",
+"splash.1": "الزومبي بشر أيضاً!",
+"splash.2": "كرتوني ١٠٠٪!",
+"splash.3": "ابنِ. انجُ. كرر.",
+"splash.4": "احذر من الحشد!",
+"splash.5": "الآن مع الميني غان!"
 }

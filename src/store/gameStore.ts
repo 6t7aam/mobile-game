@@ -179,7 +179,7 @@ export const useGameStore = create<GameState>()(
       },
     }),
     {
-      name: 'ashen-game',
+      name: 'holdouts-game',
       storage: createJSONStorage(() => AsyncStorage),
       version: 1,
     },

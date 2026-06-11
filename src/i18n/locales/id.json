@@ -1,5 +1,5 @@
 {
-"game.title": "ASHEN DOMINION",
+"game.title": "THE HOLDOUTS",
 "game.tagline": "Berapa malam kau bisa bertahan?",
 "common.back": "‹ Kembali",
 "common.close": "Tutup",
@@ -345,5 +345,12 @@
 "boss.swarm": "The Swarm",
 "boss.ironGuardian": "Iron Guardian",
 "boss.hiveMother": "Hive Mother",
-"acc.cloudOff": "Cloud tidak terhubung"
+"acc.cloudOff": "Cloud tidak terhubung",
+"menu.play": "Main",
+"menu.selectWorld": "Pilih Dunia",
+"splash.1": "Zombi juga manusia!",
+"splash.2": "100% kartun banget!",
+"splash.3": "Bangun. Bertahan. Ulangi.",
+"splash.4": "Awas gerombolan!",
+"splash.5": "Kini dengan minigun!"
 }

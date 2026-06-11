@@ -50,7 +50,7 @@ export type StringKey = string;
 export type Table = Record<string, string>;
 
 export const ru: Table = {
-  'game.title': 'ПЕПЕЛЬНЫЙ ПРЕДЕЛ',
+  'game.title': 'THE HOLDOUTS',
   'game.tagline': 'Сколько ночей ты продержишься?',
 
   'common.back': '‹ Назад',
@@ -73,6 +73,13 @@ export const ru: Table = {
   'menu.shop': 'Магазин',
   'menu.account': 'Аккаунт',
   'menu.tagline': 'Сколько ночей ты продержишься?',
+  'menu.play': 'Играть',
+  'menu.selectWorld': 'Выбор мира',
+  'splash.1': 'Зомби тоже люди!',
+  'splash.2': '100% мультяшно!',
+  'splash.3': 'Построй. Выживи. Повтори.',
+  'splash.4': 'Осторожно, орда!',
+  'splash.5': 'Теперь с миниганами!',
 
   'settings.title': 'Настройки',
   'settings.audio': 'Звук',
@@ -247,7 +254,7 @@ export const ru: Table = {
 };
 
 export const en: Table = {
-  'game.title': 'ASHEN DOMINION',
+  'game.title': 'THE HOLDOUTS',
   'game.tagline': 'How many nights can you hold?',
 
   'common.back': '‹ Back',
@@ -270,6 +277,13 @@ export const en: Table = {
   'menu.shop': 'Shop',
   'menu.account': 'Account',
   'menu.tagline': 'How many nights can you survive?',
+  'menu.play': 'Play',
+  'menu.selectWorld': 'Select World',
+  'splash.1': 'Zombies are people too!',
+  'splash.2': '100% cartoony!',
+  'splash.3': 'Build. Survive. Repeat.',
+  'splash.4': 'Beware the horde!',
+  'splash.5': 'Now with miniguns!',
 
   'settings.title': 'Settings',
   'settings.audio': 'Audio',

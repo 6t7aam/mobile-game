@@ -1,5 +1,5 @@
 {
-"game.title": "灰烬领域",
+"game.title": "THE HOLDOUTS",
 "game.tagline": "你能撑过几个夜晚？",
 "common.back": "‹ 返回",
 "common.close": "关闭",
@@ -345,5 +345,12 @@
 "boss.swarm": "虫群",
 "boss.ironGuardian": "钢铁卫士",
 "boss.hiveMother": "巢穴之母",
-"acc.cloudOff": "云端未连接"
+"acc.cloudOff": "云端未连接",
+"menu.play": "开始游戏",
+"menu.selectWorld": "选择世界",
+"splash.1": "僵尸也是人！",
+"splash.2": "100% 纯卡通！",
+"splash.3": "建造。生存。循环。",
+"splash.4": "小心尸潮！",
+"splash.5": "现在有加特林了！"
 }

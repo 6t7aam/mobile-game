@@ -33,10 +33,10 @@ export interface CrystalPack {
 }
 
 export const CRYSTAL_PACKS: CrystalPack[] = [
-  { productId: 'ashen.crystals.100', nameKey: 'shop.packSmall', crystals: 100, priceLabel: '$0.99', emoji: '💎' },
-  { productId: 'ashen.crystals.550', nameKey: 'shop.packMedium', crystals: 550, priceLabel: '$4.99', emoji: '💰' },
-  { productId: 'ashen.crystals.1200', nameKey: 'shop.packLarge', crystals: 1200, priceLabel: '$9.99', emoji: '📦' },
-  { productId: 'ashen.crystals.3000', nameKey: 'shop.packHuge', crystals: 3000, priceLabel: '$19.99', emoji: '👑', bestValue: true },
+  { productId: 'holdouts.crystals.100', nameKey: 'shop.packSmall', crystals: 100, priceLabel: '$0.99', emoji: '💎' },
+  { productId: 'holdouts.crystals.550', nameKey: 'shop.packMedium', crystals: 550, priceLabel: '$4.99', emoji: '💰' },
+  { productId: 'holdouts.crystals.1200', nameKey: 'shop.packLarge', crystals: 1200, priceLabel: '$9.99', emoji: '📦' },
+  { productId: 'holdouts.crystals.3000', nameKey: 'shop.packHuge', crystals: 3000, priceLabel: '$19.99', emoji: '👑', bestValue: true },
 ];
 
 export type PurchaseResult =

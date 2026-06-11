@@ -1,5 +1,5 @@
 {
-"game.title": "KÜL HÜKÜMRANLIĞI",
+"game.title": "THE HOLDOUTS",
 "game.tagline": "Kaç gece dayanabilirsin?",
 "common.back": "‹ Geri",
 "common.close": "Kapat",
@@ -345,5 +345,12 @@
 "boss.swarm": "Sürü",
 "boss.ironGuardian": "Demir Muhafız",
 "boss.hiveMother": "Kovan Ana",
-"acc.cloudOff": "Bulut bağlı değil"
+"acc.cloudOff": "Bulut bağlı değil",
+"menu.play": "Oyna",
+"menu.selectWorld": "Dünya Seç",
+"splash.1": "Zombiler de insan!",
+"splash.2": "%100 çizgi film!",
+"splash.3": "İnşa Et. Hayatta Kal. Tekrarla.",
+"splash.4": "Sürüye dikkat!",
+"splash.5": "Şimdi minigun'lı!"
 }

@@ -1,5 +1,5 @@
 {
-"game.title": "ছাইয়ের রাজত্ব",
+"game.title": "THE HOLDOUTS",
 "game.tagline": "কয় রাত টিকতে পারবে?",
 "common.back": "‹ পিছনে",
 "common.close": "বন্ধ করুন",
@@ -345,5 +345,12 @@
 "boss.swarm": "দ্য সোয়ার্ম",
 "boss.ironGuardian": "আয়রন গার্ডিয়ান",
 "boss.hiveMother": "হাইভ মাদার",
-"acc.cloudOff": "ক্লাউড সংযুক্ত নয়"
+"acc.cloudOff": "ক্লাউড সংযুক্ত নয়",
+"menu.play": "খেলুন",
+"menu.selectWorld": "জগৎ বেছে নিন",
+"splash.1": "জম্বিরাও মানুষ!",
+"splash.2": "১০০% কার্টুনি!",
+"splash.3": "বানাও। বাঁচো। বারবার।",
+"splash.4": "জম্বি বাহিনী থেকে সাবধান!",
+"splash.5": "এখন মিনিগান সহ!"
 }

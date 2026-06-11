@@ -1,5 +1,5 @@
 {
-"game.title": "राख का साम्राज्य",
+"game.title": "THE HOLDOUTS",
 "game.tagline": "तुम कितनी रातें टिक पाओगे?",
 "common.back": "‹ पीछे",
 "common.close": "बंद करें",
@@ -345,5 +345,12 @@
 "boss.swarm": "झुंड",
 "boss.ironGuardian": "आयरन गार्डियन",
 "boss.hiveMother": "हाइव मदर",
-"acc.cloudOff": "क्लाउड कनेक्ट नहीं है"
+"acc.cloudOff": "क्लाउड कनेक्ट नहीं है",
+"menu.play": "खेलें",
+"menu.selectWorld": "दुनिया चुनें",
+"splash.1": "ज़ोंबी भी इंसान हैं!",
+"splash.2": "100% कार्टूनी!",
+"splash.3": "बनाओ। बचो। दोहराओ।",
+"splash.4": "झुंड से सावधान!",
+"splash.5": "अब मिनीगन के साथ!"
 }

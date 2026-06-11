@@ -1,10 +1,10 @@
 {
   "expo": {
-    "name": "Ashen Dominion",
-    "slug": "ashen-dominion",
+    "name": "The Holdouts",
+    "slug": "the-holdouts",
     "version": "1.0.0",
     "orientation": "landscape",
-    "scheme": "ashendominion",
+    "scheme": "theholdouts",
     "userInterfaceStyle": "dark",
     "backgroundColor": "#0d0d0f",
     "splash": {
@@ -18,14 +18,14 @@
     "ios": {
       "supportsTablet": true,
       "requireFullScreen": true,
-      "bundleIdentifier": "com.ashendominion.app",
+      "bundleIdentifier": "com.theholdouts.app",
       "buildNumber": "1",
       "infoPlist": {
         "UIRequiresFullScreen": true
       }
     },
     "android": {
-      "package": "com.ashendominion.app",
+      "package": "com.theholdouts.app",
       "versionCode": 1,
       "screenOrientation": "landscape",
       "adaptiveIcon": {

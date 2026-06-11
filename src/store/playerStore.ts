@@ -71,7 +71,7 @@ export const usePlayerStore = create<PlayerStoreState>()(
       setDeathDrop: (deathDrop) => set({ deathDrop }),
     }),
     {
-      name: 'ashen-player',
+      name: 'holdouts-player',
       storage: createJSONStorage(() => AsyncStorage),
       version: 1,
       // only the equipped weapon needs to survive a cold start

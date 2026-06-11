@@ -104,7 +104,7 @@ export const useMetaStore = create<MetaState>()(
       },
     }),
     {
-      name: 'ashen-meta',
+      name: 'holdouts-meta',
       storage: createJSONStorage(() => AsyncStorage),
       version: 1,
     },

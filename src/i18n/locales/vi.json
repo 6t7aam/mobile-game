@@ -1,5 +1,5 @@
 {
-"game.title": "VÙNG TRO TÀN",
+"game.title": "THE HOLDOUTS",
 "game.tagline": "Bạn trụ được bao nhiêu đêm?",
 "common.back": "‹ Quay lại",
 "common.close": "Đóng",
@@ -345,5 +345,12 @@
 "boss.swarm": "Bầy Đàn",
 "boss.ironGuardian": "Vệ Binh Sắt",
 "boss.hiveMother": "Mẫu Nghi Tổ Quỷ",
-"acc.cloudOff": "Đám mây chưa kết nối"
+"acc.cloudOff": "Đám mây chưa kết nối",
+"menu.play": "Chơi",
+"menu.selectWorld": "Chọn thế giới",
+"splash.1": "Zombie cũng là người mà!",
+"splash.2": "100% hoạt hình!",
+"splash.3": "Xây dựng. Sinh tồn. Lặp lại.",
+"splash.4": "Coi chừng lũ xác sống!",
+"splash.5": "Nay đã có súng máy!"
 }

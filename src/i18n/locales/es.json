@@ -1,5 +1,5 @@
 {
-"game.title": "DOMINIO CENIZO",
+"game.title": "THE HOLDOUTS",
 "game.tagline": "¿Cuántas noches resistirás?",
 "common.back": "‹ Atrás",
 "common.close": "Cerrar",
@@ -345,5 +345,12 @@
 "boss.swarm": "La Horda",
 "boss.ironGuardian": "Guardián de Hierro",
 "boss.hiveMother": "Madre de la Colmena",
-"acc.cloudOff": "Nube no conectada"
+"acc.cloudOff": "Nube no conectada",
+"menu.play": "Jugar",
+"menu.selectWorld": "Seleccionar mundo",
+"splash.1": "¡Los zombis también son personas!",
+"splash.2": "¡100 % caricaturesco!",
+"splash.3": "Construye. Sobrevive. Repite.",
+"splash.4": "¡Cuidado con la horda!",
+"splash.5": "¡Ahora con miniguns!"
 }

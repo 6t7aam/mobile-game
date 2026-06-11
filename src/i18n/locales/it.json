@@ -1,5 +1,5 @@
 {
-"game.title": "ASHEN DOMINION",
+"game.title": "THE HOLDOUTS",
 "game.tagline": "Quante notti resisterai?",
 "common.back": "‹ Indietro",
 "common.close": "Chiudi",
@@ -345,5 +345,12 @@
 "boss.swarm": "Lo Sciame",
 "boss.ironGuardian": "Guardiano di Ferro",
 "boss.hiveMother": "Madre dell'Alveare",
-"acc.cloudOff": "Cloud non connesso"
+"acc.cloudOff": "Cloud non connesso",
+"menu.play": "Gioca",
+"menu.selectWorld": "Seleziona mondo",
+"splash.1": "Anche gli zombie sono persone!",
+"splash.2": "100% cartonesco!",
+"splash.3": "Costruisci. Sopravvivi. Ripeti.",
+"splash.4": "Occhio all'orda!",
+"splash.5": "Ora con i minigun!"
 }

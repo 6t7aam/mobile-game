@@ -1,5 +1,5 @@
 /**
- * Ashen Dominion — core type system.
+ * The Holdouts — core type system.
  *
  * Every gameplay subsystem (data constants, stores, combat, UI) draws its
  * shapes from this file. Keep it free of runtime values — pure types only,

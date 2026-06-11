@@ -1,5 +1,5 @@
 {
-"game.title": "애쉬 도미니언",
+"game.title": "THE HOLDOUTS",
 "game.tagline": "당신은 며칠 밤을 버틸 수 있습니까?",
 "common.back": "‹ 뒤로",
 "common.close": "닫기",
@@ -345,5 +345,12 @@
 "boss.swarm": "스웜",
 "boss.ironGuardian": "아이언 가디언",
 "boss.hiveMother": "하이브 마더",
-"acc.cloudOff": "클라우드 연결 안 됨"
+"acc.cloudOff": "클라우드 연결 안 됨",
+"menu.play": "시작하기",
+"menu.selectWorld": "월드 선택",
+"splash.1": "좀비도 사람이라구요!",
+"splash.2": "100% 만화 느낌!",
+"splash.3": "건설. 생존. 반복.",
+"splash.4": "좀비 떼를 조심하세요!",
+"splash.5": "미니건 전격 추가!"
 }

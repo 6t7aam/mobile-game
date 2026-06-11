@@ -1,5 +1,5 @@
 {
-"game.title": "アッシュン・ドミニオン",
+"game.title": "THE HOLDOUTS",
 "game.tagline": "幾夜を生き延びられるか？",
 "common.back": "‹ 戻る",
 "common.close": "閉じる",
@@ -345,5 +345,12 @@
 "boss.swarm": "スウォーム",
 "boss.ironGuardian": "アイアンガーディアン",
 "boss.hiveMother": "ハイヴマザー",
-"acc.cloudOff": "クラウドが未接続です"
+"acc.cloudOff": "クラウドが未接続です",
+"menu.play": "プレイ",
+"menu.selectWorld": "ワールド選択",
+"splash.1": "ゾンビだって人間だ！",
+"splash.2": "100% カートゥーン！",
+"splash.3": "作って、生き延びて、繰り返せ！",
+"splash.4": "大群に気をつけろ！",
+"splash.5": "ミニガン搭載！"
 }

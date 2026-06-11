@@ -1,5 +1,5 @@
 {
-"game.title": "ASHEN DOMINION",
+"game.title": "THE HOLDOUTS",
 "game.tagline": "คุณจะรอดได้กี่คืน?",
 "common.back": "‹ กลับ",
 "common.close": "ปิด",
@@ -345,5 +345,12 @@
 "boss.swarm": "ฝูงมรณะ",
 "boss.ironGuardian": "ผู้พิทักษ์เหล็กไหล",
 "boss.hiveMother": "มารดาแห่งรังซอมบี้",
-"acc.cloudOff": "คลาวด์ไม่เชื่อมต่อ"
+"acc.cloudOff": "คลาวด์ไม่เชื่อมต่อ",
+"menu.play": "เล่น",
+"menu.selectWorld": "เลือกโลก",
+"splash.1": "ซอมบี้ก็มีหัวใจนะ!",
+"splash.2": "การ์ตูน 100%!",
+"splash.3": "สร้าง. รอด. วนไป.",
+"splash.4": "ระวังฝูงซอมบี้!",
+"splash.5": "จัดเต็มด้วยมินิกัน!"
 }

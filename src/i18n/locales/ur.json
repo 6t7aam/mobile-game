@@ -1,5 +1,5 @@
 {
-"game.title": "راکھ کی سلطنت",
+"game.title": "THE HOLDOUTS",
 "game.tagline": "تم کتنی راتیں بچ پاؤ گے؟",
 "common.back": "‹ پیچھے",
 "common.close": "بند کریں",
@@ -345,5 +345,12 @@
 "boss.swarm": "لشکر",
 "boss.ironGuardian": "آہنی محافظ",
 "boss.hiveMother": "ملکہ چھتہ",
-"acc.cloudOff": "کلاؤڈ منسلک نہیں ہے"
+"acc.cloudOff": "کلاؤڈ منسلک نہیں ہے",
+"menu.play": "کھیلیں",
+"menu.selectWorld": "دنیا منتخب کریں",
+"splash.1": "زومبی بھی انسان ہیں!",
+"splash.2": "%100 کارٹونی!",
+"splash.3": "بناؤ۔ بچو۔ دہراؤ۔",
+"splash.4": "لشکر سے ہوشیار!",
+"splash.5": "اب منی گنز کے ساتھ!"
 }

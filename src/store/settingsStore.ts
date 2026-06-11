@@ -53,7 +53,7 @@ export const useSettingsStore = create<SettingsState>()(
       markTutorialDone: () => set({ tutorialDone: true }),
     }),
     {
-      name: 'ashen-settings',
+      name: 'holdouts-settings',
       storage: createJSONStorage(() => AsyncStorage),
       version: 1,
     },

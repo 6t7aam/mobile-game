@@ -296,7 +296,7 @@ export const useBaseStore = create<BaseState>()(
       },
     }),
     {
-      name: 'ashen-base',
+      name: 'holdouts-base',
       storage: createJSONStorage(() => AsyncStorage),
       version: 4,
       migrate: (persisted) => {
