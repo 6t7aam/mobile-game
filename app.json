@@ -8,6 +8,7 @@
     "userInterfaceStyle": "dark",
     "backgroundColor": "#0d0d0f",
     "splash": {
+      "image": "./assets/images/splash.png",
       "backgroundColor": "#0d0d0f",
       "resizeMode": "contain"
     },
@@ -26,15 +27,21 @@
     "android": {
       "package": "com.ashendominion.app",
       "versionCode": 1,
-      "screenOrientation": "landscape"
+      "screenOrientation": "landscape",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/images/adaptive-icon.png",
+        "backgroundColor": "#0d0d0f"
+      }
     },
     "plugins": [
       "expo-asset"
     ],
     "web": {
-      "bundler": "metro"
+      "bundler": "metro",
+      "favicon": "./assets/images/favicon.png"
     },
     "newArchEnabled": true,
-    "orientationLock": "landscape"
+    "orientationLock": "landscape",
+    "icon": "./assets/images/icon.png"
   }
 }

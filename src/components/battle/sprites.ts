@@ -2,6 +2,7 @@ import { Skia, type SkCanvas, type SkFont, type SkPaint } from '@shopify/react-n
 
 import type { BuildingType } from '@/types';
 import type { EnemyEntity } from '@/engine/entities';
+import type { SkinDef } from '@/constants/skins';
 import { THEME } from '@/theme';
 
 const C = THEME.colors;
@@ -117,6 +118,8 @@ interface CharStyle {
   hair: string;
   /** Small color accent (beanie band / armband) that makes the silhouette pop. */
   accent: string;
+  /** Meme-skin signature feature (see constants/skins.ts). */
+  feature?: SkinDef['feature'];
 }
 
 const PLAYER_STYLE: CharStyle = {
@@ -127,6 +130,17 @@ const PLAYER_STYLE: CharStyle = {
   hair: C.hair,
   accent: C.accent,
 };
+
+/** Active player skin (set from the meta store; default = classic survivor). */
+let playerStyle: CharStyle = PLAYER_STYLE;
+
+export function setPlayerSkin(skin: SkinDef | undefined): void {
+  if (!skin || skin.id === 'default') {
+    playerStyle = PLAYER_STYLE;
+    return;
+  }
+  playerStyle = { ...skin.palette, feature: skin.feature };
+}
 
 const SOLDIER_STYLE: CharStyle = {
   jacket: C.stoneSide,
@@ -207,6 +221,33 @@ function drawHumanoid(
   // hair: cap over the crown; covers most of the head when facing away
   const hairH = facingAway ? hr * 1.5 : hr * 0.95;
   rrect(c, x - hr + OUTLINE.width, hy - hr + OUTLINE.width, hr * 2 - OUTLINE.width * 2, hairH, hr * 0.6, style.hair);
+  // meme-skin signature features that sit on top of the head
+  if (style.feature === 'dogeEars' || style.feature === 'ogreEars') {
+    const tube = style.feature === 'ogreEars';
+    for (const side of [-1, 1] as const) {
+      if (tube) {
+        outlinedRRect(c, x + side * hr * 0.78 - 1.6 * u, hy - hr - 3.2 * u, 3.2 * u, 5 * u, 1.6 * u, style.skin);
+        c.drawCircle(x + side * hr * 0.78, hy - hr - 3 * u, 1.1 * u, setFill(style.accent));
+      } else {
+        outlinedRRect(c, x + side * hr * 0.62 - 2.4 * u, hy - hr - 3.6 * u, 4.8 * u, 5.4 * u, 2 * u, style.hair);
+      }
+    }
+  }
+  if (style.feature === 'peel') {
+    // banana: four peel petals folding out of the crown
+    for (const side of [-1.4, -0.5, 0.5, 1.4]) {
+      c.save();
+      c.rotate(deg(side * 24), x, hy - hr + 1 * u);
+      outlinedRRect(c, x - 1.8 * u, hy - hr - 5.6 * u, 3.6 * u, 6.4 * u, 1.8 * u, style.jacketDark);
+      c.restore();
+    }
+  }
+  if (style.feature === 'visor' && !facingAway) {
+    // amogus: one wide cyan visor instead of a face
+    const vw = hr * 1.35;
+    outlinedRRect(c, x - vw / 2 + ax * 1.6 * u, hy - 1.2 * u, vw, hr * 0.78, hr * 0.36, style.accent);
+    rrect(c, x - vw / 2 + ax * 1.6 * u + 2 * u, hy - 0.2 * u, vw * 0.4, hr * 0.22, hr * 0.12, '#ffffff');
+  }
   if (!facingAway) {
     // fringe notches + accent band keep the face lively
     for (const fx of [-0.55, 0, 0.55]) {
@@ -215,10 +256,11 @@ function drawHumanoid(
     rect(c, x - hr + OUTLINE.width, hy - hr + hairH - 1.4 * u, hr * 2 - OUTLINE.width * 2, 1.4 * u, style.accent, 0.9);
 
     // eyes: white sclera, pupils tracking the facing, periodic blink
+    const noFace = style.feature === 'visor';
     const blinkT = (clock * 0.31 + 0.15) % 1;
     const blink = blinkT < 0.045 ? Math.max(0.12, Math.abs(Math.sin((blinkT / 0.045) * Math.PI))) : 1;
     const ey = hy + 1.6 * u + ay * 1.4 * u;
-    for (const side of [-1, 1] as const) {
+    for (const side of noFace ? ([] as const) : ([-1, 1] as const)) {
       const ex = x + side * 3.1 * u + ax * 1.5 * u;
       c.drawOval(Skia.XYWHRect(ex - 2 * u, ey - 2.5 * u * blink, 4 * u, 5 * u * blink), setFill(C.white));
       if (blink > 0.3) {
@@ -227,7 +269,18 @@ function drawHumanoid(
       }
     }
     // small mouth — open when running (panting), neutral when idle
-    if (moving) {
+    if (style.feature === 'frogMouth') {
+      // pepe: the famous wide, slightly sad mouth
+      c.drawLine(x - 3.4 * u, hy + 5.4 * u, x + 3.4 * u, hy + 5.2 * u, setStroke(OUTLINE.color, 1.3 * u, 0.9));
+      c.drawLine(x - 3.4 * u, hy + 5.4 * u, x - 4.2 * u, hy + 4.6 * u, setStroke(OUTLINE.color, 1.1 * u, 0.85));
+    } else if (style.feature === 'jaw') {
+      // gigachad: chiseled jawline + stoic flat mouth
+      c.drawLine(x - hr * 0.7, hy + hr * 0.55, x - hr * 0.2, hy + hr * 0.92, setStroke(OUTLINE.color, 1 * u, 0.65));
+      c.drawLine(x + hr * 0.7, hy + hr * 0.55, x + hr * 0.2, hy + hr * 0.92, setStroke(OUTLINE.color, 1 * u, 0.65));
+      c.drawLine(x + ax * 1.6 * u - 1.8 * u, hy + 5.4 * u, x + ax * 1.6 * u + 1.8 * u, hy + 5.4 * u, setStroke(OUTLINE.color, 1.2 * u, 0.9));
+    } else if (style.feature === 'visor') {
+      // no mouth under the visor
+    } else if (moving) {
       c.drawOval(Skia.XYWHRect(x + ax * 1.6 * u - 1.3 * u, hy + 5 * u - 0.9 * u, 2.6 * u, 2.2 * u), setFill(OUTLINE.color, 0.85));
     } else {
       c.drawLine(x + ax * 1.6 * u - 1.4 * u, hy + 5.2 * u, x + ax * 1.6 * u + 1.4 * u, hy + 5.2 * u, setStroke(OUTLINE.color, 1 * u, 0.8));
@@ -253,7 +306,7 @@ export function drawPlayer(
   carrying = 0, // logs held over the shoulder
   phase?: number, // distance-driven walk cycle; falls back to clock cadence
 ): void {
-  drawHumanoid(c, x, y, facing, phase ?? clock * 2.2, moving, clock, PLAYER_STYLE, 1.55, flash);
+  drawHumanoid(c, x, y, facing, phase ?? clock * 2.2, moving, clock, playerStyle, 1.55, flash);
   if (swing > 0) drawAxeSwing(c, x, y, facing, swing);
   if (carrying > 0) drawCarriedLogs(c, x, y, carrying);
 }

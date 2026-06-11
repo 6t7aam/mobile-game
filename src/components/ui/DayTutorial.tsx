@@ -18,6 +18,7 @@ import Animated, {
 
 import { COLORS, FONTS } from '@/constants/gameConfig';
 import { THEME } from '@/theme';
+import { useT } from '@/i18n/useT';
 
 export type TutorialStep = 'chop' | 'carry' | 'deliver' | 'build' | 'done';
 
@@ -28,15 +29,16 @@ interface DayTutorialProps {
   onSkip: () => void;
 }
 
-const TEXT: Record<TutorialStep, string> = {
-  chop: 'Подойди к дереву и жми «Действие», пока оно не упадёт.',
-  carry: 'Подбери упавшее бревно — просто пройди по нему.',
-  deliver: 'Отнеси брёвна к костру в центре, чтобы получить дерево.',
-  build: 'Нажми «Строить» сверху и поставь стену для защиты на ночь.',
+const TEXT_KEY: Record<TutorialStep, string> = {
+  chop: 'tut.chop',
+  carry: 'tut.pickup',
+  deliver: 'tut.carry',
+  build: 'tut.build',
   done: '',
 };
 
 export function DayTutorial({ step, target, onSkip }: DayTutorialProps) {
+  const t = useT();
   const bob = useSharedValue(0);
   useEffect(() => {
     bob.value = withRepeat(withTiming(1, { duration: 700, easing: Easing.inOut(Easing.quad) }), -1, true);
@@ -61,9 +63,9 @@ export function DayTutorial({ step, target, onSkip }: DayTutorialProps) {
       {/* instruction banner */}
       <View style={styles.banner} pointerEvents="box-none">
         <Text style={styles.title}>Обучение</Text>
-        <Text style={styles.text}>{TEXT[step]}</Text>
+        <Text style={styles.text}>{t(TEXT_KEY[step])}</Text>
         <Text style={styles.skip} onPress={onSkip}>
-          Пропустить обучение
+          {t('tutorial.skip')}
         </Text>
       </View>
     </View>

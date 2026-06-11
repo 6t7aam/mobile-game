@@ -6,12 +6,15 @@ import { COLORS, FONTS } from '@/constants/gameConfig';
 import { DarkButton } from '@/components/ui/DarkButton';
 import { ENEMY_LIST, BOSS_LIST } from '@/constants/enemies';
 import { useProgressStore } from '@/store/progressStore';
+import { useT, useTn } from '@/i18n/useT';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Codex'>;
 
 const THREAT_DOTS = (n: number) => '⬛'.repeat(n);
 
 export function CodexScreen({ navigation }: Props) {
+  const t = useT();
+  const tn = useTn();
   const codex = useProgressStore((s) => s.codex);
   const stats = useProgressStore((s) => s.stats);
 
@@ -23,8 +26,8 @@ export function CodexScreen({ navigation }: Props) {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <DarkButton label="‹ Назад" variant="ghost" onPress={() => navigation.goBack()} />
-        <Text style={styles.title}>Кодекс</Text>
+        <DarkButton label={t('common.back')} variant="ghost" onPress={() => navigation.goBack()} />
+        <Text style={styles.title}>{t('codex.title')}</Text>
         <Text style={styles.progress}>
           {unlocked}/{totalEntries}
         </Text>
@@ -33,51 +36,51 @@ export function CodexScreen({ navigation }: Props) {
       <ScrollView contentContainerStyle={styles.body}>
         {/* lifetime statistics */}
         <View style={styles.statPanel}>
-          <Text style={styles.sectionTitle}>Хроника Выживания</Text>
+          <Text style={styles.sectionTitle}>{t('codex.chronicle')}</Text>
           <View style={styles.statGrid}>
-            <Stat label="Лучшая ночь" value={stats.bestNight} highlight />
-            <Stat label="Ночей пережито" value={stats.totalNightsSurvived} />
-            <Stat label="Зомби убито" value={stats.totalZombiesKilled} />
-            <Stat label="Падений" value={stats.totalDeaths} />
+            <Stat label={t('codex.bestNight')} value={stats.bestNight} highlight />
+            <Stat label={t('codex.nights')} value={stats.totalNightsSurvived} />
+            <Stat label={t('codex.kills')} value={stats.totalZombiesKilled} />
+            <Stat label={t('codex.deaths')} value={stats.totalDeaths} />
           </View>
         </View>
 
-        <Text style={styles.sectionTitle}>Боссы</Text>
+        <Text style={styles.sectionTitle}>{t('codex.bosses')}</Text>
         {BOSS_LIST.map((b) => {
           const seen = known(b.type);
           return (
             <View key={b.type} style={[styles.entry, styles.bossEntry, !seen && styles.locked]}>
               <View style={styles.entryHead}>
                 <Text style={[styles.entryName, styles.bossName]}>
-                  {seen ? b.name : '???'}
+                  {seen ? tn('boss', b.type, b.name) : '???'}
                 </Text>
-                <Text style={styles.nightTag}>Ночь {b.appearsOnNight}</Text>
+                <Text style={styles.nightTag}>{t('codex.night', { n: b.appearsOnNight })}</Text>
               </View>
               <Text style={styles.lore}>
-                {seen ? b.lore : 'Запись откроется, когда ты встретишь его — и переживёшь.'}
+                {seen ? b.lore : t('codex.lockedEntry')}
               </Text>
             </View>
           );
         })}
 
-        <Text style={styles.sectionTitle}>Орда</Text>
+        <Text style={styles.sectionTitle}>{t('codex.horde')}</Text>
         {ENEMY_LIST.map((e) => {
           const seen = known(e.type);
           return (
             <View key={e.type} style={[styles.entry, !seen && styles.locked]}>
               <View style={styles.entryHead}>
-                <Text style={styles.entryName}>{seen ? e.name : '???'}</Text>
+                <Text style={styles.entryName}>{seen ? tn('e', e.type, e.name) : '???'}</Text>
                 <Text style={styles.threat}>{THREAT_DOTS(e.threat)}</Text>
               </View>
               {seen ? (
                 <>
                   <Text style={styles.statsLine}>
-                    HP {e.hp} · урон {e.damage} · скорость {e.speed}
+                    {t('codex.stats', { hp: e.hp, dmg: e.damage, spd: e.speed })}
                   </Text>
                   {e.lore && <Text style={styles.lore}>{e.lore}</Text>}
                 </>
               ) : (
-                <Text style={styles.lore}>Неизвестная угроза. Ещё не встречена.</Text>
+                <Text style={styles.lore}>{t('codex.unknown')}</Text>
               )}
             </View>
           );

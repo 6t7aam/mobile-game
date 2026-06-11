@@ -18,6 +18,7 @@ import { GRID, WORLD } from '@/constants/gameConfig';
 import { BUILDINGS } from '@/constants/buildings';
 import { BOSSES } from '@/constants/enemies';
 import { THEME } from '@/theme';
+import { t as tr, tn as trn } from '@/i18n/useT';
 import {
   drawTile,
   drawBuilding,
@@ -489,7 +490,7 @@ function drawOneEnemy(canvas: SkCanvas, sim: BattleSim, e: import('@/engine/enti
   if (e.boss) {
     const fonts = getBattleFonts();
     if (fonts) {
-      const name = BOSSES[e.boss]?.name ?? 'БОСС';
+      const name = (e.boss ? trn('boss', e.boss, BOSSES[e.boss]?.name ?? '') : '') || tr('world.boss');
       drawText(canvas, name.toUpperCase(), e.x, e.y - r - 18, fonts.large, C.offWhite);
     }
   }
@@ -592,7 +593,7 @@ function drawEnemies(canvas: SkCanvas, sim: BattleSim, t: number): void {
     if (e.boss) {
       const fonts = getBattleFonts();
       if (fonts) {
-        const name = BOSSES[e.boss]?.name ?? 'БОСС';
+        const name = (e.boss ? trn('boss', e.boss, BOSSES[e.boss]?.name ?? '') : '') || tr('world.boss');
         drawText(canvas, name.toUpperCase(), e.x, e.y - r - 18, fonts.large, C.offWhite);
       }
     }

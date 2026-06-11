@@ -198,6 +198,12 @@ export class BattleSim {
 
   private hitCb: HitCallbacks;
 
+  /** UI hook: called whenever a friendly weapon actually fires (sfx). */
+  onShot?: (def: WeaponDef) => void;
+
+  /** UI hook: an enemy died (sfx). */
+  onEnemyDeath?: () => void;
+
   constructor(opts: {
     night: number;
     buildings: PlacedBuilding[];
@@ -1046,6 +1052,7 @@ export class BattleSim {
   }
 
   private onEnemyKilled(e: EnemyEntity): void {
+    this.onEnemyDeath?.();
     this.killedTotal++;
     this.nightKills++;
     this.encountered.add(e.boss ?? e.type);
@@ -1210,6 +1217,7 @@ export class BattleSim {
     friendly: boolean,
   ): void {
     if (!this.paySupply(def)) return;
+    this.onShot?.(def);
     spawnMuzzleFlash(this.particles, this.rng, x, y, dir);
     const dmgType: DamageType = weaponDamageType(def);
 

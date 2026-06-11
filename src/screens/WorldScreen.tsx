@@ -36,8 +36,13 @@ import { BuildingIcon } from '@/components/base/BuildingIcon';
 import { BuildingUpgradePanel, sellRefund, upgradeCost } from '@/components/base/BuildingUpgradePanel';
 import { DayTutorial, type TutorialStep } from '@/components/ui/DayTutorial';
 import { playSfx, setMusic, stopMusic } from '@/audio/AudioManager';
+import { sfxForWeapon } from '@/audio/registry';
 import { getActiveSlot, saveToSlot } from '@/save/slots';
 import { hapticLight, hapticMedium, hapticHeavy, hapticSelect, hapticError } from '@/systems/haptics';
+import { useT, useTn, t as tGlobal, tn as tnGlobal } from '@/i18n/useT';
+import { useMetaStore } from '@/store/metaStore';
+import { SKINS } from '@/constants/skins';
+import { setPlayerSkin } from '@/components/battle/sprites';
 import { useGameStore } from '@/store/gameStore';
 import { useBaseStore } from '@/store/baseStore';
 import { usePlayerStore } from '@/store/playerStore';
@@ -79,26 +84,34 @@ const BUILDING_RECIPES: Partial<Record<BuildingType, IntermediateType[]>> = {
   workshop: ['ammo', 'advancedComponents', 'explosives', 'rockets'],
   garden: ['rations'],
 };
-const INTERMEDIATE_NAME: Record<IntermediateType, string> = {
-  ammo: 'Патроны',
-  advancedComponents: 'Компоненты',
-  rations: 'Пайки',
-  explosives: 'Взрывчатка',
-  rockets: 'Ракеты',
+const INTERMEDIATE_KEY: Record<IntermediateType, string> = {
+  ammo: 'res.ammo',
+  advancedComponents: 'res.components',
+  rations: 'res.rations',
+  explosives: 'res.explosives',
+  rockets: 'res.rockets',
 };
 const BARRACKS_TRAIN_BASE: Partial<ResourceBag> = { food: 20, scrap: 10 };
 const TRAINING_SEC = 18;
 
-const PHASE_LABEL: Record<string, string> = {
-  day: 'День',
-  dusk: 'Сумерки',
-  night: 'Ночь',
-  dawn: 'Рассвет',
+const PHASE_KEY: Record<string, string> = {
+  day: 'phase.day',
+  dusk: 'phase.dusk',
+  night: 'phase.night',
+  dawn: 'phase.dawn',
 };
 
 export function WorldScreen({ navigation }: Props) {
   const { width, height } = useWindowDimensions();
   useBattleFonts();
+  const T = useT();
+  const Tn = useTn();
+
+  // apply the equipped meme skin to the player sprite
+  const equippedSkin = useMetaStore((s) => s.equippedSkin);
+  useEffect(() => {
+    setPlayerSkin(SKINS[equippedSkin]);
+  }, [equippedSkin]);
 
   // ---- stores ---------------------------------------------------------------
   const night = useGameStore((s) => s.night);
@@ -183,6 +196,30 @@ export function WorldScreen({ navigation }: Props) {
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // ---- combat sfx (throttled so miniguns don't spam 9 sounds a second) -----
+  useEffect(() => {
+    const lastShot = new Map<string, number>();
+    let lastDeath = 0;
+    sim.onShot = (def) => {
+      const now = Date.now();
+      const sfx = sfxForWeapon(def);
+      const minGap = def.fireRate > 6 ? 110 : 60;
+      if (now - (lastShot.get(sfx) ?? 0) < minGap) return;
+      lastShot.set(sfx, now);
+      playSfx(sfx);
+    };
+    sim.onEnemyDeath = () => {
+      const now = Date.now();
+      if (now - lastDeath < 180) return;
+      lastDeath = now;
+      playSfx('zombie_death');
+    };
+    return () => {
+      sim.onShot = undefined;
+      sim.onEnemyDeath = undefined;
+    };
+  }, [sim]);
 
   // keep the sim's weapon in sync with the arsenal
   useEffect(() => {
@@ -824,8 +861,8 @@ export function WorldScreen({ navigation }: Props) {
             ]}
           />
           <View>
-            <Text style={styles.clockDay}>День {night}</Text>
-            <Text style={styles.clockPhase}>{PHASE_LABEL[sim.phase]}</Text>
+            <Text style={styles.clockDay}>{T('world.day', { n: night })}</Text>
+            <Text style={styles.clockPhase}>{T(PHASE_KEY[sim.phase] ?? 'phase.day')}</Text>
           </View>
           {/* cycle progress arc (thin bar) */}
           <View style={styles.cycleBack}>
@@ -857,20 +894,20 @@ export function WorldScreen({ navigation }: Props) {
               }}
             >
               <Text style={styles.menuBtnIcon}>⚒</Text>
-              <Text style={styles.menuBtnLabel}>Строить</Text>
+              <Text style={styles.menuBtnLabel}>{T('world.build')}</Text>
             </Pressable>
           )}
           <Pressable style={styles.menuBtn} onPress={() => navigation.navigate('Arsenal')}>
             <Text style={styles.menuBtnIcon}>⚔</Text>
-            <Text style={styles.menuBtnLabel}>Оружие</Text>
+            <Text style={styles.menuBtnLabel}>{T('world.weapons')}</Text>
           </Pressable>
           <Pressable style={styles.menuBtn} onPress={() => navigation.navigate('Research')}>
             <Text style={styles.menuBtnIcon}>⚗</Text>
-            <Text style={styles.menuBtnLabel}>Наука</Text>
+            <Text style={styles.menuBtnLabel}>{T('world.research')}</Text>
           </Pressable>
           <Pressable style={styles.menuBtn} onPress={() => navigation.navigate('MainMenu')}>
             <Text style={styles.menuBtnIcon}>☰</Text>
-            <Text style={styles.menuBtnLabel}>Меню</Text>
+            <Text style={styles.menuBtnLabel}>{T('world.menu')}</Text>
           </Pressable>
         </View>
       </View>
@@ -898,7 +935,7 @@ export function WorldScreen({ navigation }: Props) {
         </View>
         {isNight && (
           <Text style={styles.killText}>
-            Волна {Math.min(prog.wave, prog.waves)}/{prog.waves} · убито {prog.killed}
+            {T('world.wave', { a: Math.min(prog.wave, prog.waves), b: prog.waves, k: prog.killed })}
           </Text>
         )}
         <View style={styles.minimap}>
@@ -956,7 +993,7 @@ export function WorldScreen({ navigation }: Props) {
       {/* ---- placement confirm / cancel ---- */}
       {placing && (
         <View style={styles.placeBar} pointerEvents="box-none">
-          <Text style={styles.placeHint}>Перетащи здание на место</Text>
+          <Text style={styles.placeHint}>{T('world.dragPlace')}</Text>
           <View style={styles.placeBtns}>
             <Pressable style={[styles.placeBtn, styles.placeCancel]} onPress={cancelPlace}>
               <Text style={styles.placeBtnText}>✕</Text>
@@ -984,9 +1021,9 @@ export function WorldScreen({ navigation }: Props) {
           />
           {selectedBuilding.type === 'barracks' && (
             <View style={styles.productionPanel}>
-              <Text style={styles.productionTitle}>Производство казармы</Text>
+              <Text style={styles.productionTitle}>{T('world.barracksProd')}</Text>
               <Text style={styles.productionText}>
-                Защитники: {barracksGarrison} / {BUILDINGS.barracks.maxLevel}
+                {T('world.defenders', { a: barracksGarrison, b: BUILDINGS.barracks.maxLevel })}
               </Text>
               {barracksTrainingLeft > 0 && (
                 <View style={styles.productionProgressBack}>
@@ -1004,10 +1041,10 @@ export function WorldScreen({ navigation }: Props) {
               >
                 <Text style={styles.productionBtnText}>
                   {barracksGarrison >= BUILDINGS.barracks.maxLevel
-                    ? 'Отряд укомплектован'
+                    ? T('world.squadFull')
                     : barracksTrainingLeft > 0
-                      ? 'Идёт тренировка'
-                    : `Тренировать: 🌿${barracksTrainCost.food ?? 0} ⚙️${barracksTrainCost.scrap ?? 0}`}
+                      ? T('world.training')
+                      : T('world.train', { food: barracksTrainCost.food ?? 0, scrap: barracksTrainCost.scrap ?? 0 })}
                 </Text>
               </Pressable>
             </View>
@@ -1015,7 +1052,7 @@ export function WorldScreen({ navigation }: Props) {
           {!isNight && (BUILDING_RECIPES[selectedBuilding.type] ?? []).length > 0 && (
             <View style={styles.productionPanel}>
               <Text style={styles.productionTitle}>
-                Производство — {BUILDINGS[selectedBuilding.type].name}
+                {T('world.prod', { name: Tn('b', selectedBuilding.type, BUILDINGS[selectedBuilding.type].name) })}
               </Text>
               {(BUILDING_RECIPES[selectedBuilding.type] ?? []).map((out) => {
                 const recipe = PRODUCTION_RECIPES.find((r) => r.output === out);
@@ -1044,7 +1081,7 @@ export function WorldScreen({ navigation }: Props) {
                   <View key={out} style={styles.craftRow}>
                     <View style={styles.craftInfo}>
                       <Text style={styles.craftName}>
-                        {INTERMEDIATE_NAME[out]} · {Math.floor(intermediates[out])}
+                        {T(INTERMEDIATE_KEY[out])} · {Math.floor(intermediates[out])}
                       </Text>
                       <View style={styles.costRow}>
                         {resCosts.map(([k, v]) => (
@@ -1097,7 +1134,7 @@ export function WorldScreen({ navigation }: Props) {
               hapticMedium();
             }}
           >
-            <Text style={styles.abilityText}>СПОС.</Text>
+            <Text style={styles.abilityText}>{T('hud.ability')}</Text>
           </Pressable>
         )}
         <Pressable
@@ -1106,7 +1143,7 @@ export function WorldScreen({ navigation }: Props) {
             if (sim.roll(input.current.mx, input.current.my)) hapticLight();
           }}
         >
-          <Text style={styles.rollText}>КУВЫРОК</Text>
+          <Text style={styles.rollText}>{T('hud.roll')}</Text>
         </Pressable>
         {isNight ? (
           <Pressable
@@ -1117,14 +1154,14 @@ export function WorldScreen({ navigation }: Props) {
             }}
             onPressOut={() => (input.current.firing = false)}
           >
-            <Text style={styles.fireText}>ОГОНЬ</Text>
+            <Text style={styles.fireText}>{T('hud.fire')}</Text>
           </Pressable>
         ) : (
           <Pressable
             style={[styles.harvestBtn, !nearTree && !nearRock && !nearBuilding && styles.btnDim]}
             onPress={harvest}
           >
-            <Text style={styles.fireText}>ДЕЙСТВИЕ</Text>
+            <Text style={styles.fireText}>{T('hud.action')}</Text>
             <Text style={styles.interactHint}>
               {nearTree ? '🪓' : nearRock ? '⛏' : nearBuilding ? '🔧' : '·'}
             </Text>
@@ -1143,35 +1180,33 @@ export function WorldScreen({ navigation }: Props) {
       {/* ---- dusk warning banner ---- */}
       {duskBanner && !gameOver && (
         <View style={styles.dawnWrap} pointerEvents="none">
-          <Text style={styles.duskTitle}>СУМЕРКИ</Text>
-          <Text style={styles.dawnSub}>Орда приближается — к оружию!</Text>
+          <Text style={styles.duskTitle}>{T('world.duskTitle')}</Text>
+          <Text style={styles.dawnSub}>{T('world.duskSub')}</Text>
         </View>
       )}
 
       {/* ---- dawn banner ---- */}
       {dawnBanner && (
         <View style={styles.dawnWrap} pointerEvents="none">
-          <Text style={styles.dawnTitle}>РАССВЕТ</Text>
-          <Text style={styles.dawnSub}>
-            Ночь {dawnBanner.night} пережита · убито {dawnBanner.killed}
-          </Text>
+          <Text style={styles.dawnTitle}>{T('world.dawnTitle')}</Text>
+          <Text style={styles.dawnSub}>{T('world.dawnSub', { n: dawnBanner.night, k: dawnBanner.killed })}</Text>
         </View>
       )}
 
       {/* ---- game over ---- */}
       {gameOver && (
         <View style={styles.overWrap}>
-          <Text style={styles.overTitle}>ТЫ ПАЛ</Text>
+          <Text style={styles.overTitle}>{T('world.fellTitle')}</Text>
           <Text style={styles.overSub}>
-            {gameOver.cause === 'shelter' ? 'Костёр погас. Лагерь пал.' : 'Тьма забрала тебя.'}
-            {'\n'}Продержался ночей: {night - 1}. Потеряно 30% ресурсов.
-            {'\n'}Технологии и оружие сохранены.
+            {gameOver.cause === 'shelter' ? T('world.fellCamp') : T('world.fellDark')}
+            {'\n'}{T('world.fellStats', { n: night - 1 })}
+            {'\n'}{T('world.fellKeep')}
           </Text>
           <Pressable style={styles.overBtn} onPress={restartRun}>
-            <Text style={styles.overBtnText}>Начать заново (NG+)</Text>
+            <Text style={styles.overBtnText}>{T('world.ngPlus')}</Text>
           </Pressable>
           <Pressable style={[styles.overBtn, styles.overGhostBtn]} onPress={() => navigation.replace('MainMenu')}>
-            <Text style={styles.overBtnText}>В меню</Text>
+            <Text style={styles.overBtnText}>{T('world.menu')}</Text>
           </Pressable>
         </View>
       )}
@@ -1216,7 +1251,7 @@ const BuildDock = memo(function BuildDock({
       pointerEvents={visible ? 'box-none' : 'none'}
     >
       <View style={styles.buildDockHeader}>
-        <Text style={styles.buildDockTitle}>ПОСТРОЙКИ</Text>
+        <Text style={styles.buildDockTitle}>{tGlobal('world.buildTitle')}</Text>
         <Pressable style={styles.buildDockClose} onPress={onClose} hitSlop={10}>
           <Text style={styles.buildDockCloseText}>✕</Text>
         </Pressable>
@@ -1251,11 +1286,11 @@ const BuildDock = memo(function BuildDock({
             >
               <BuildingIcon type={type} level={1} size={40} />
               <Text style={styles.slotName} numberOfLines={1}>
-                {def.name}
+                {tnGlobal('b', type, def.name)}
               </Text>
               {locked && gate ? (
                 <Text style={styles.slotLockText} numberOfLines={1}>
-                  🔒 {gate.name}
+                  🔒 {tnGlobal('r', gate.id, gate.name)}
                 </Text>
               ) : (
                 <View style={styles.costRow}>

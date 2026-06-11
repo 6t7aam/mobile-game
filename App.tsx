@@ -9,6 +9,7 @@ import { useFonts } from 'expo-font';
 import { RootNavigator } from '@/navigation/RootNavigator';
 import { COLORS } from '@/constants/gameConfig';
 import { initAudio } from '@/audio/AudioManager';
+import { useSettingsStore } from '@/store/settingsStore';
 
 SplashScreen.preventAutoHideAsync().catch(() => {
   /* reloading the app may trigger this — safe to ignore */
@@ -32,7 +33,14 @@ export default function App() {
 
   useEffect(() => {
     void initAudio();
-    setReady(true);
+    // Wait for the persisted settings (language choice!) before first render,
+    // so returning players never see the language picker flash by.
+    if (useSettingsStore.persist.hasHydrated()) setReady(true);
+    else {
+      const unsub = useSettingsStore.persist.onFinishHydration(() => setReady(true));
+      setTimeout(() => setReady(true), 1500); // storage failure safety net
+      void unsub;
+    }
 
     // Web browsers block audio until the first user gesture. Resume the audio
     // context on the first interaction so SFX actually play in the browser.

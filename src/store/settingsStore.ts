@@ -7,8 +7,10 @@ import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
+import type { Language } from '@/i18n/strings';
+
 export type Quality = 'low' | 'high';
-export type Language = 'ru' | 'en';
+export type { Language };
 
 interface SettingsState {
   musicVolume: number; // 0..1
@@ -17,6 +19,8 @@ interface SettingsState {
   reducedMotion: boolean;
   quality: Quality;
   language: Language;
+  /** False until the player picks a language on first launch. */
+  languageChosen: boolean;
   tutorialDone: boolean;
 
   setMusic: (v: number) => void;
@@ -37,6 +41,7 @@ export const useSettingsStore = create<SettingsState>()(
       reducedMotion: false,
       quality: 'high',
       language: 'ru',
+      languageChosen: false,
       tutorialDone: false,
 
       setMusic: (v) => set({ musicVolume: clamp01(v) }),
@@ -44,7 +49,7 @@ export const useSettingsStore = create<SettingsState>()(
       toggleHaptics: () => set((s) => ({ haptics: !s.haptics })),
       toggleReducedMotion: () => set((s) => ({ reducedMotion: !s.reducedMotion })),
       setQuality: (quality) => set({ quality }),
-      setLanguage: (language) => set({ language }),
+      setLanguage: (language) => set({ language, languageChosen: true }),
       markTutorialDone: () => set({ tutorialDone: true }),
     }),
     {

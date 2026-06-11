@@ -24,6 +24,8 @@ import {
   getActiveSlot,
 } from '@/save/slots';
 import { THEME } from '@/theme';
+import { useT } from '@/i18n/useT';
+import { useMetaStore } from '@/store/metaStore';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'MainMenu'>;
 
@@ -32,6 +34,9 @@ const F = THEME.fonts;
 
 export function MainMenuScreen({ navigation }: Props) {
   const { width, height } = useWindowDimensions();
+  const t = useT();
+  const crystals = useMetaStore((s) => s.crystals);
+  const canClaimDaily = useMetaStore((s) => s.lastDailyClaim) !== todayStamp();
   const [slots, setSlots] = useState<SlotMeta[]>([]);
   const [confirmDelete, setConfirmDelete] = useState<number | null>(null);
 
@@ -92,9 +97,20 @@ export function MainMenuScreen({ navigation }: Props) {
       <MenuScene width={width} height={height} mood="menu" />
 
       <View style={styles.content} pointerEvents="box-none">
+        {/* top-right: crystals + account */}
+        <View style={styles.topRight} pointerEvents="box-none">
+          <Pressable style={styles.crystalChip} onPress={() => navigation.navigate('Shop')}>
+            <Text style={styles.crystalText}>💎 {crystals}</Text>
+            {canClaimDaily && <View style={styles.dot} />}
+          </Pressable>
+          <Pressable style={styles.iconBtn} onPress={() => navigation.navigate('Account')}>
+            <Text style={styles.iconBtnText}>👤</Text>
+          </Pressable>
+        </View>
+
         {/* hero */}
-        <Text style={styles.title}>ПЕПЕЛЬНЫЙ ПРЕДЕЛ</Text>
-        <Text style={styles.tagline}>Сколько ночей ты продержишься?</Text>
+        <Text style={styles.title}>{t('game.title')}</Text>
+        <Text style={styles.tagline}>{t('menu.tagline')}</Text>
 
         {/* world slots */}
         <View style={styles.slotsRow}>
@@ -102,28 +118,28 @@ export function MainMenuScreen({ navigation }: Props) {
             const meta = slots.find((s) => s.id === id);
             return (
               <View key={id} style={[styles.slot, meta && styles.slotFilled]}>
-                <Text style={styles.slotTitle}>{meta ? `Мир ${id}` : 'Пустой слот'}</Text>
+                <Text style={styles.slotTitle}>{meta ? t('menu.world', { n: id }) : t('menu.emptySlot')}</Text>
                 {meta ? (
                   <>
-                    <Text style={styles.slotNight}>Ночь {meta.night}</Text>
+                    <Text style={styles.slotNight}>{t('menu.night', { n: meta.night })}</Text>
                     <Text style={styles.slotMeta}>
-                      Рекорд: {meta.bestNight} · убито {meta.zombiesKilled}
+                      {t('menu.record', { b: meta.bestNight, k: meta.zombiesKilled })}
                     </Text>
                     <Text style={styles.slotDate}>{fmtDate(meta.updatedAt)}</Text>
                     <Pressable style={styles.slotPlay} onPress={() => void enterSlot(id)}>
-                      <Text style={styles.slotPlayText}>Продолжить</Text>
+                      <Text style={styles.slotPlayText}>{t('menu.continue')}</Text>
                     </Pressable>
                     <Pressable style={styles.slotDelete} onPress={() => void removeSlot(id)} hitSlop={6}>
                       <Text style={[styles.slotDeleteText, confirmDelete === id && styles.slotDeleteConfirm]}>
-                        {confirmDelete === id ? 'Точно удалить?' : 'Удалить'}
+                        {confirmDelete === id ? t('menu.confirmDelete') : t('menu.delete')}
                       </Text>
                     </Pressable>
                   </>
                 ) : (
                   <>
-                    <Text style={styles.slotEmptyHint}>Начни новое выживание</Text>
+                    <Text style={styles.slotEmptyHint}>{t('menu.startNew')}</Text>
                     <Pressable style={[styles.slotPlay, styles.slotNew]} onPress={() => void enterSlot(id)}>
-                      <Text style={styles.slotPlayText}>Новый мир</Text>
+                      <Text style={styles.slotPlayText}>{t('menu.newWorld')}</Text>
                     </Pressable>
                   </>
                 )}
@@ -134,14 +150,18 @@ export function MainMenuScreen({ navigation }: Props) {
 
         {/* meta row */}
         <View style={styles.metaRow}>
+          <Pressable style={[styles.metaBtn, styles.shopBtn]} onPress={() => navigation.navigate('Shop')}>
+            <Text style={[styles.metaBtnText, styles.shopBtnText]}>🛒 {t('menu.shop')}</Text>
+            {canClaimDaily && <Text style={styles.giftTag}>🎁</Text>}
+          </Pressable>
           <Pressable style={styles.metaBtn} onPress={() => navigation.navigate('Arsenal')}>
-            <Text style={styles.metaBtnText}>Арсенал</Text>
+            <Text style={styles.metaBtnText}>{t('menu.arsenal')}</Text>
           </Pressable>
           <Pressable style={styles.metaBtn} onPress={() => navigation.navigate('Codex')}>
-            <Text style={styles.metaBtnText}>Кодекс</Text>
+            <Text style={styles.metaBtnText}>{t('menu.codex')}</Text>
           </Pressable>
           <Pressable style={styles.metaBtn} onPress={() => navigation.navigate('Settings')}>
-            <Text style={styles.metaBtnText}>Настройки</Text>
+            <Text style={styles.metaBtnText}>{t('menu.settings')}</Text>
           </Pressable>
         </View>
       </View>
@@ -149,7 +169,53 @@ export function MainMenuScreen({ navigation }: Props) {
   );
 }
 
+function todayStamp(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`;
+}
+
 const styles = StyleSheet.create({
+  topRight: {
+    position: 'absolute',
+    top: 14,
+    right: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    zIndex: 5,
+  },
+  crystalChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#7fd6e8',
+    backgroundColor: 'rgba(10,12,18,0.75)',
+  },
+  crystalText: { fontFamily: F.heading, color: '#7fd6e8', fontSize: 14 },
+  dot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: C.accent,
+    marginLeft: 6,
+  },
+  iconBtn: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: C.panelBorder,
+    backgroundColor: 'rgba(10,12,18,0.75)',
+  },
+  iconBtnText: { fontSize: 15 },
+  shopBtn: { borderColor: '#e8c84a' },
+  shopBtnText: { color: '#e8c84a' },
+  giftTag: { fontSize: 12, marginLeft: 4 },
   container: { flex: 1, backgroundColor: C.background },
   content: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 20 },
   title: {

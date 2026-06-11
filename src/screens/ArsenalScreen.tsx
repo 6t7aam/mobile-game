@@ -11,24 +11,29 @@ import { resolveModifiers } from '@/systems/modifiers';
 import { useProgressStore } from '@/store/progressStore';
 import { usePlayerStore } from '@/store/playerStore';
 import { useGameStore } from '@/store/gameStore';
+import { useMetaStore } from '@/store/metaStore';
+import { useT, useTn } from '@/i18n/useT';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Arsenal'>;
 
-const BRANCH_LABEL: Record<WeaponBranch, string> = {
-  primitive: '🪓 Примитивное',
-  firearm: '🔫 Огнестрел',
-  heavy: '💣 Тяжёлое',
+const BRANCH_KEY: Record<WeaponBranch, string> = {
+  primitive: 'arsenal.primitive',
+  firearm: 'arsenal.firearm',
+  heavy: 'arsenal.heavy',
 };
 
 const BRANCHES: WeaponBranch[] = ['primitive', 'firearm', 'heavy'];
 
-/** Research that unlocks each branch (см. дерево технологий). */
-const BRANCH_RESEARCH: Partial<Record<WeaponBranch, string>> = {
-  firearm: 'Порох',
-  heavy: 'Тяжёлое Вооружение',
+/** Research that unlocks each branch (id + Russian fallback name). */
+const BRANCH_RESEARCH: Partial<Record<WeaponBranch, { id: string; name: string }>> = {
+  firearm: { id: 'wpn2', name: 'Порох' },
+  heavy: { id: 'wpn5', name: 'Тяжёлое Вооружение' },
 };
 
 export function ArsenalScreen({ navigation }: Props) {
+  const t = useT();
+  const tn = useTn();
+  const ownedPremium = useMetaStore((s) => s.ownedPremium);
   const completedResearch = useProgressStore((s) => s.completedResearch);
   const owned = useProgressStore((s) => s.ownedWeapons);
   const buyWeapon = useProgressStore((s) => s.buyWeapon);
@@ -56,13 +61,13 @@ export function ArsenalScreen({ navigation }: Props) {
   const costLabel = (cost: Partial<Record<ResourceType, number>>) =>
     (Object.entries(cost) as [ResourceType, number][])
       .map(([k, v]) => `${RESOURCE_LABEL[k]}${v}`)
-      .join(' ') || 'беспл.';
+      .join(' ') || t('arsenal.free');
 
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <DarkButton label="‹ Назад" variant="ghost" onPress={() => navigation.goBack()} />
-        <Text style={styles.title}>Арсенал</Text>
+        <DarkButton label={t('common.back')} variant="ghost" onPress={() => navigation.goBack()} />
+        <Text style={styles.title}>{t('arsenal.title')}</Text>
         <View style={styles.resBar}>
           {(Object.entries(resources) as [ResourceType, number][]).map(([k, v]) => (
             <View key={k} style={styles.resChip}>
@@ -79,21 +84,21 @@ export function ArsenalScreen({ navigation }: Props) {
           return (
           <View key={branch} style={styles.branch}>
             <View style={styles.branchHeader}>
-              <Text style={styles.branchTitle}>{BRANCH_LABEL[branch]}</Text>
+              <Text style={styles.branchTitle}>{t(BRANCH_KEY[branch])}</Text>
               <Text style={styles.branchCount}>
-                {WEAPON_LIST.filter((w) => w.branch === branch && ownsId(w.id)).length}/
-                {WEAPON_LIST.filter((w) => w.branch === branch).length}
+                {WEAPON_LIST.filter((w) => w.branch === branch && !w.premium && ownsId(w.id)).length}/
+                {WEAPON_LIST.filter((w) => w.branch === branch && !w.premium).length}
               </Text>
             </View>
             {branchLocked && (
               <Text style={styles.branchLockNote}>
-                🔒 Ветка закрыта — изучите «{BRANCH_RESEARCH[branch]}» в Дереве Технологий
+                🔒 {t('arsenal.locked', { name: tn('r', BRANCH_RESEARCH[branch]?.id ?? '', BRANCH_RESEARCH[branch]?.name ?? '') })}
               </Text>
             )}
-            {WEAPON_LIST.filter((w) => w.branch === branch).map((w) => {
+            {WEAPON_LIST.filter((w) => w.branch === branch && (!w.premium || ownedPremium.includes(w.id))).map((w) => {
               const isOwned = ownsId(w.id);
               const isEquipped = equipped === w.id;
-              const prereqMet = !branchLocked && w.prerequisites.every(ownsId);
+              const prereqMet = w.premium ? true : !branchLocked && w.prerequisites.every(ownsId);
               const affordable = canAfford(w.purchaseCost);
               const level = levelOf(w.id);
               const upCost = isOwned ? weaponUpgradeCost(w, level) : null;
@@ -105,8 +110,9 @@ export function ArsenalScreen({ navigation }: Props) {
                 <View key={w.id} style={[styles.weapon, isEquipped && styles.weaponEquipped]}>
                   <View style={styles.weaponText}>
                     <View style={styles.nameRow}>
-                      <Text style={styles.weaponName}>{w.name}</Text>
-                      {isEquipped && <Text style={styles.equippedBadge}>В РУКАХ</Text>}
+                      <Text style={[styles.weaponName, w.premium && styles.premiumName]}>{tn('w', w.id, w.name)}</Text>
+                      {w.premium && <Text style={styles.premiumBadge}>PREMIUM</Text>}
+                      {isEquipped && <Text style={styles.equippedBadge}>{t('arsenal.inHands')}</Text>}
                       {isOwned && (
                         <View style={styles.pips}>
                           {Array.from({ length: w.maxLevel }).map((_, i) => (
@@ -126,12 +132,12 @@ export function ArsenalScreen({ navigation }: Props) {
                       <Text style={styles.statChip}>⏱ {w.fireRate}/с</Text>
                       <Text style={styles.statChip}>📏 {w.range}</Text>
                     </View>
-                    <Text style={styles.ability}>⚡ {w.ability.name}: {w.ability.description}</Text>
+                    <Text style={styles.ability}>⚡ {tn('a', w.ability.id, w.ability.name)}: {tn('ad', w.ability.id, w.ability.description)}</Text>
                     {isOwned && !maxed && upCost && (
-                      <Text style={styles.upCost}>Улучшение: {costLabel(upCost)}</Text>
+                      <Text style={styles.upCost}>{t('arsenal.upgrade')}{costLabel(upCost)}</Text>
                     )}
                     {!isOwned && prereqMet && (
-                      <Text style={styles.upCost}>Цена: {costLabel(w.purchaseCost)}</Text>
+                      <Text style={styles.upCost}>{t('arsenal.price')}{costLabel(w.purchaseCost)}</Text>
                     )}
                   </View>
 
@@ -139,7 +145,7 @@ export function ArsenalScreen({ navigation }: Props) {
                     {isOwned ? (
                       <>
                         <DarkButton
-                          label={isEquipped ? 'В руках' : 'Взять'}
+                          label={isEquipped ? t('arsenal.equipped') : t('arsenal.equip')}
                           variant={isEquipped ? 'ghost' : 'primary'}
                           disabled={isEquipped}
                           onPress={() => equip(w.id)}
@@ -148,7 +154,7 @@ export function ArsenalScreen({ navigation }: Props) {
                           <Text style={styles.maxed}>MAX</Text>
                         ) : (
                           <DarkButton
-                            label={`Ур. ${level + 1}`}
+                            label={t('arsenal.lvl', { n: level + 1 })}
                             variant="ghost"
                             disabled={!canUp}
                             onPress={() => upgrade(w)}
@@ -157,7 +163,7 @@ export function ArsenalScreen({ navigation }: Props) {
                       </>
                     ) : prereqMet ? (
                       <DarkButton
-                        label="Купить"
+                        label={t('arsenal.buy')}
                         disabled={!affordable}
                         onPress={() => buy(w)}
                       />
@@ -177,6 +183,17 @@ export function ArsenalScreen({ navigation }: Props) {
 }
 
 const styles = StyleSheet.create({
+  premiumName: { color: '#e8c84a' },
+  premiumBadge: {
+    fontFamily: FONTS.heading,
+    fontSize: 9,
+    color: '#1b1207',
+    backgroundColor: '#e8c84a',
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+    borderRadius: 6,
+    overflow: 'hidden',
+  },
   container: { flex: 1, backgroundColor: COLORS.background },
   header: { flexDirection: 'row', alignItems: 'center', gap: 16, padding: 16 },
   title: { fontFamily: FONTS.heading, color: COLORS.accent, fontSize: 20 },

@@ -11,18 +11,21 @@ import { RESEARCH } from '@/constants/research';
 import { useProgressStore } from '@/store/progressStore';
 import { useGameStore } from '@/store/gameStore';
 import { useBaseStore } from '@/store/baseStore';
+import { useT, useTn } from '@/i18n/useT';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Research'>;
 
-const BRANCH_LABEL: Record<ResearchBranch, string> = {
-  weapons: '🔫 Вооружение',
-  fortification: '🧱 Фортификация',
-  survival: '🌿 Выживание',
+const BRANCH_KEY: Record<ResearchBranch, string> = {
+  weapons: 'research.weapons',
+  fortification: 'research.fort',
+  survival: 'research.survival',
 };
 
 const BRANCHES: ResearchBranch[] = ['weapons', 'fortification', 'survival'];
 
 export function ResearchScreen({ navigation }: Props) {
+  const t = useT();
+  const tn = useTn();
   const completed = useProgressStore((s) => s.completedResearch);
   const completeResearch = useProgressStore((s) => s.completeResearch);
   const resources = useGameStore((s) => s.resources);
@@ -58,8 +61,8 @@ export function ResearchScreen({ navigation }: Props) {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <DarkButton label="‹ Назад" variant="ghost" onPress={() => navigation.goBack()} />
-        <Text style={styles.title}>Дерево Технологий</Text>
+        <DarkButton label={t('common.back')} variant="ghost" onPress={() => navigation.goBack()} />
+        <Text style={styles.title}>{t('research.title')}</Text>
         <View style={styles.resBar}>
           {RESOURCE_TYPES.map((r) => (
             <View key={r} style={styles.resChip}>
@@ -73,21 +76,23 @@ export function ResearchScreen({ navigation }: Props) {
       <ScrollView contentContainerStyle={styles.body}>
         {!hasCouncil && (
           <Text style={styles.councilNote}>
-            ⚠ Постройте Совет в лагере, чтобы запускать исследования
+            ⚠ {t('research.needCouncil')}
           </Text>
         )}
         {activeResearch && (
           <View style={styles.activeBanner}>
             <Text style={styles.activeBannerText}>
-              ⏳ Идёт исследование: {RESEARCH.find((r) => r.id === activeResearch.id)?.name} —
-              осталось {activeResearch.daysLeft} дн.
+              {t('research.active', {
+                name: tn('r', activeResearch.id, RESEARCH.find((r) => r.id === activeResearch.id)?.name ?? ''),
+                n: activeResearch.daysLeft,
+              })}
             </Text>
           </View>
         )}
         {BRANCHES.map((branch) => (
           <View key={branch} style={styles.branch}>
             <View style={styles.branchHeader}>
-              <Text style={styles.branchTitle}>{BRANCH_LABEL[branch]}</Text>
+              <Text style={styles.branchTitle}>{t(BRANCH_KEY[branch])}</Text>
               <Text style={styles.branchCount}>
                 {RESEARCH.filter((r) => r.branch === branch && completed.includes(r.id)).length}/
                 {RESEARCH.filter((r) => r.branch === branch).length}
@@ -108,16 +113,17 @@ export function ResearchScreen({ navigation }: Props) {
                 >
                   <View style={styles.nodeText}>
                     <Text style={styles.nodeName}>
-                      {node.name} {done ? '✓' : ''}
+                      {tn('r', node.id, node.name)} {done ? '✓' : ''}
                     </Text>
-                    <Text style={styles.nodeDesc}>{node.description}</Text>
+                    <Text style={styles.nodeDesc}>{tn('rd', node.id, node.description)}</Text>
                     {!done && !available && (
                       <Text style={styles.nodeLockHint}>
-                        🔒 Требуется:{' '}
-                        {node.prerequisites
-                          .filter((pr) => !completed.includes(pr))
-                          .map((pr) => RESEARCH.find((r) => r.id === pr)?.name ?? pr)
-                          .join(', ')}
+                        {t('research.requires', {
+                          names: node.prerequisites
+                            .filter((pr) => !completed.includes(pr))
+                            .map((pr) => tn('r', pr, RESEARCH.find((r) => r.id === pr)?.name ?? pr))
+                            .join(', '),
+                        })}
                       </Text>
                     )}
                     {!done && Object.keys(node.cost).length > 0 && (
@@ -129,11 +135,11 @@ export function ResearchScreen({ navigation }: Props) {
                     )}
                   </View>
                   {!done && available && activeResearch?.id === node.id && (
-                    <Text style={styles.researching}>{activeResearch.daysLeft} дн.</Text>
+                    <Text style={styles.researching}>{activeResearch.daysLeft}</Text>
                   )}
                   {!done && available && activeResearch?.id !== node.id && (
                     <DarkButton
-                      label={node.days > 0 ? `Изучить (${node.days}д)` : 'Изучить'}
+                      label={node.days > 0 ? t('research.learnDays', { n: node.days }) : t('research.learn')}
                       disabled={!affordable || !!activeResearch || (node.days > 0 && !hasCouncil)}
                       onPress={() => research(node.id)}
                     />

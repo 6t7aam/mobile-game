@@ -1,72 +1,78 @@
 /**
- * Localization string table. The game ships RU-first (the design spec is in
- * Russian) with an EN mirror so it's store-ready for both markets. Access via
- * the `useT()` hook (reactive to the language setting) or `t()` for non-React
- * call sites. Missing EN keys gracefully fall back to RU.
+ * Localization core. RU is the source language, EN is the hand-written
+ * mirror; the other 18 locales are generated into `locales/*.json`
+ * (see scripts/translate.md) and fall back EN → RU → key.
+ *
+ * UI strings: `t('menu.continue')` (+ `{var}` interpolation).
+ * Content names (weapons/buildings/research/enemies) are looked up by id:
+ * `tn('w', def.id, def.name)` → key `w.<id>` with the Russian name from the
+ * constants as fallback, so the game never shows a bare key.
  */
 
-import type { Language } from '@/store/settingsStore';
+import { LOCALE_TABLES } from './locales';
 
-export type StringKey =
-  // common
-  | 'common.back'
-  | 'common.close'
-  | 'common.cancel'
-  | 'common.max'
-  // menu
-  | 'menu.play'
-  | 'menu.arsenal'
-  | 'menu.codex'
-  | 'menu.settings'
-  | 'menu.bestNight'
-  // settings
-  | 'settings.title'
-  | 'settings.audio'
-  | 'settings.music'
-  | 'settings.sfx'
-  | 'settings.haptics'
-  | 'settings.reducedMotion'
-  | 'settings.quality'
-  | 'settings.language'
-  | 'settings.statsTitle'
-  | 'settings.bestNight'
-  | 'settings.nightsSurvived'
-  | 'settings.zombiesKilled'
-  | 'settings.deaths'
-  | 'settings.wipe'
-  | 'settings.on'
-  | 'settings.off'
-  | 'settings.qualityLow'
-  | 'settings.qualityHigh'
-  // day
-  | 'day.phase'
-  | 'day.startNight'
-  | 'day.research'
-  | 'day.arsenal'
-  // tutorial
-  | 'tutorial.welcome'
-  | 'tutorial.build'
-  | 'tutorial.craft'
-  | 'tutorial.startNight'
-  | 'tutorial.move'
-  | 'tutorial.fire'
-  | 'tutorial.skip'
-  | 'tutorial.next'
-  | 'tutorial.done';
+export type Language =
+  | 'en' | 'zh' | 'hi' | 'es' | 'fr' | 'ar' | 'bn' | 'pt' | 'ru' | 'ur'
+  | 'id' | 'de' | 'ja' | 'tr' | 'ko' | 'it' | 'vi' | 'th' | 'pl' | 'nl';
 
-type Table = Record<StringKey, string>;
+export interface LangInfo {
+  code: Language;
+  flag: string;
+  /** The language's own name for itself. */
+  native: string;
+}
 
-const ru: Table = {
+/** The 20 most spoken languages, selectable on first launch. */
+export const LANGS: LangInfo[] = [
+  { code: 'en', flag: '🇬🇧', native: 'English' },
+  { code: 'zh', flag: '🇨🇳', native: '中文' },
+  { code: 'hi', flag: '🇮🇳', native: 'हिन्दी' },
+  { code: 'es', flag: '🇪🇸', native: 'Español' },
+  { code: 'fr', flag: '🇫🇷', native: 'Français' },
+  { code: 'ar', flag: '🇸🇦', native: 'العربية' },
+  { code: 'bn', flag: '🇧🇩', native: 'বাংলা' },
+  { code: 'pt', flag: '🇧🇷', native: 'Português' },
+  { code: 'ru', flag: '🇷🇺', native: 'Русский' },
+  { code: 'ur', flag: '🇵🇰', native: 'اردو' },
+  { code: 'id', flag: '🇮🇩', native: 'Indonesia' },
+  { code: 'de', flag: '🇩🇪', native: 'Deutsch' },
+  { code: 'ja', flag: '🇯🇵', native: '日本語' },
+  { code: 'tr', flag: '🇹🇷', native: 'Türkçe' },
+  { code: 'ko', flag: '🇰🇷', native: '한국어' },
+  { code: 'it', flag: '🇮🇹', native: 'Italiano' },
+  { code: 'vi', flag: '🇻🇳', native: 'Tiếng Việt' },
+  { code: 'th', flag: '🇹🇭', native: 'ไทย' },
+  { code: 'pl', flag: '🇵🇱', native: 'Polski' },
+  { code: 'nl', flag: '🇳🇱', native: 'Nederlands' },
+];
+
+export type StringKey = string;
+export type Table = Record<string, string>;
+
+export const ru: Table = {
+  'game.title': 'ПЕПЕЛЬНЫЙ ПРЕДЕЛ',
+  'game.tagline': 'Сколько ночей ты продержишься?',
+
   'common.back': '‹ Назад',
   'common.close': 'Закрыть',
   'common.cancel': 'Отмена',
   'common.max': 'МАКС',
 
-  'menu.play': 'Начать выживание',
+  'menu.continue': 'Продолжить',
+  'menu.newWorld': 'Новый мир',
+  'menu.world': 'Мир {n}',
+  'menu.emptySlot': 'Пустой слот',
+  'menu.startNew': 'Начни новое выживание',
+  'menu.night': 'Ночь {n}',
+  'menu.record': 'Рекорд: {b} · убито {k}',
+  'menu.delete': 'Удалить',
+  'menu.confirmDelete': 'Точно удалить?',
   'menu.arsenal': 'Арсенал',
   'menu.codex': 'Кодекс',
   'menu.settings': 'Настройки',
-  'menu.bestNight': 'Лучший результат: Ночь',
+  'menu.shop': 'Магазин',
+  'menu.account': 'Аккаунт',
+  'menu.tagline': 'Сколько ночей ты продержишься?',
 
   'settings.title': 'Настройки',
   'settings.audio': 'Звук',
@@ -87,33 +93,183 @@ const ru: Table = {
   'settings.qualityLow': 'Низкое',
   'settings.qualityHigh': 'Высокое',
 
-  'day.phase': 'ДЕНЬ · Ночь',
-  'day.startNight': 'Начать Ночь',
-  'day.research': 'Исследования',
-  'day.arsenal': 'Арсенал',
+  'lang.title': 'Выбери язык',
+  'lang.subtitle': 'Можно поменять в настройках',
 
-  'tutorial.welcome': 'Мир пал. Держи базу столько ночей, сколько сможешь.',
-  'tutorial.build': 'Выбери здание внизу и тапни по сетке, чтобы построить. Ставь стены вокруг Убежища.',
-  'tutorial.craft': 'Крафти патроны из ресурсов — без них огнестрел молчит ночью.',
-  'tutorial.startNight': 'Готов? Жми «Начать Ночь».',
-  'tutorial.move': 'Двигайся джойстиком слева.',
-  'tutorial.fire': 'Жми ОГОНЬ — авто-прицел сам найдёт ближайшего.',
-  'tutorial.skip': 'Пропустить',
+  'phase.day': 'День',
+  'phase.dusk': 'Сумерки',
+  'phase.night': 'Ночь',
+  'phase.dawn': 'Рассвет',
+
+  'world.day': 'День {n}',
+  'world.build': 'Строить',
+  'world.weapons': 'Оружие',
+  'world.research': 'Наука',
+  'world.menu': 'Меню',
+  'world.wave': 'Волна {a}/{b} · убито {k}',
+  'world.buildTitle': 'ПОСТРОЙКИ',
+  'world.dragPlace': 'Перетащи здание на место',
+  'world.barracksProd': 'Производство казармы',
+  'world.defenders': 'Защитники: {a} / {b}',
+  'world.squadFull': 'Отряд укомплектован',
+  'world.training': 'Идёт тренировка',
+  'world.train': 'Тренировать: 🌿{food} ⚙️{scrap}',
+  'world.prod': 'Производство — {name}',
+  'world.duskTitle': 'СУМЕРКИ',
+  'world.duskSub': 'Орда приближается — к оружию!',
+  'world.dawnTitle': 'РАССВЕТ',
+  'world.dawnSub': 'Ночь {n} пережита · убито {k}',
+  'world.fellTitle': 'ТЫ ПАЛ',
+  'world.fellCamp': 'Костёр погас. Лагерь пал.',
+  'world.fellDark': 'Тьма забрала тебя.',
+  'world.fellStats': 'Продержался ночей: {n}. Потеряно 30% ресурсов.',
+  'world.fellKeep': 'Технологии и оружие сохранены.',
+  'world.ngPlus': 'Начать заново (NG+)',
+  'world.boss': 'БОСС',
+
+  'hud.ability': 'СПОС.',
+  'hud.roll': 'КУВЫРОК',
+  'hud.fire': 'ОГОНЬ',
+  'hud.action': 'ДЕЙСТВИЕ',
+  'hud.reload': 'ПЕРЕЗАРЯДКА',
+  'hud.reserve': ' · запас {n}',
+  'hud.melee': 'ближний бой',
+  'hud.abilityActive': '▶ {name} {s}с',
+
+  'res.ammo': 'Патроны',
+  'res.components': 'Компоненты',
+  'res.rations': 'Пайки',
+  'res.explosives': 'Взрывчатка',
+  'res.rockets': 'Ракеты',
+
+  'tut.chop': 'Подойди к дереву и жми «Действие», пока оно не упадёт.',
+  'tut.pickup': 'Подбери упавшее бревно — просто пройди по нему.',
+  'tut.carry': 'Отнеси брёвна к костру в центре, чтобы получить дерево.',
+  'tut.build': 'Нажми «Строить» сверху и поставь стену для защиты на ночь.',
+  'tutorial.skip': 'Пропустить обучение',
   'tutorial.next': 'Дальше',
   'tutorial.done': 'Понятно',
+
+  'bup.level': 'ур. {a}/{b}',
+  'bup.upgrade': 'Улучшение: ',
+  'bup.need': 'Нужно ещё: ',
+  'bup.close': 'Закрыть',
+  'bup.open': 'Открыть',
+  'bup.doUpgrade': 'Улучшить',
+  'bup.noRes': 'Нет ресурсов',
+  'bup.maxNote': '★ Максимальный уровень ★',
+  'bup.demolish': 'Снести',
+
+  'arsenal.title': 'Арсенал',
+  'arsenal.primitive': '🪓 Примитивное',
+  'arsenal.firearm': '🔫 Огнестрел',
+  'arsenal.heavy': '💣 Тяжёлое',
+  'arsenal.locked': 'Ветка закрыта — изучите «{name}» в Дереве Технологий',
+  'arsenal.inHands': 'В РУКАХ',
+  'arsenal.equipped': 'В руках',
+  'arsenal.equip': 'Взять',
+  'arsenal.upgrade': 'Улучшение: ',
+  'arsenal.price': 'Цена: ',
+  'arsenal.free': 'беспл.',
+  'arsenal.buy': 'Купить',
+  'arsenal.lvl': 'Ур. {n}',
+
+  'research.title': 'Дерево Технологий',
+  'research.weapons': '🔫 Вооружение',
+  'research.fort': '🧱 Фортификация',
+  'research.survival': '🌿 Выживание',
+  'research.needCouncil': 'Постройте Совет в лагере, чтобы запускать исследования',
+  'research.active': '⏳ Идёт исследование: {name} — осталось {n} дн.',
+  'research.requires': '🔒 Требуется: {names}',
+  'research.learn': 'Изучить',
+  'research.learnDays': 'Изучить ({n} дн.)',
+
+  'codex.title': 'Кодекс',
+  'codex.chronicle': 'Хроника Выживания',
+  'codex.bosses': 'Боссы',
+  'codex.night': 'Ночь {n}',
+  'codex.lockedEntry': 'Запись откроется, когда ты встретишь его — и переживёшь.',
+  'codex.horde': 'Орда',
+  'codex.unknown': 'Неизвестная угроза. Ещё не встречена.',
+  'codex.bestNight': 'Лучшая ночь',
+  'codex.nights': 'Ночей пережито',
+  'codex.kills': 'Зомби убито',
+  'codex.deaths': 'Падений',
+  'codex.stats': 'HP {hp} · урон {dmg} · скорость {spd}',
+
+  'shop.title': 'Магазин',
+  'shop.crystals': 'Кристаллы',
+  'shop.daily': 'Халява дня',
+  'shop.dailyDesc': 'Бесплатный подарок каждый день. Забирай!',
+  'shop.claim': 'Забрать',
+  'shop.claimed': 'Уже забрано — приходи завтра',
+  'shop.premium': 'Премиум оружие',
+  'shop.skins': 'Мем-облики',
+  'shop.owned': 'КУПЛЕНО',
+  'shop.equip': 'Надеть',
+  'shop.equipped': 'НАДЕТО',
+  'shop.unequip': 'Снять',
+  'shop.buy': 'Купить',
+  'shop.notEnough': 'Не хватает кристаллов',
+  'shop.packSmall': 'Горсть кристаллов',
+  'shop.packMedium': 'Мешок кристаллов',
+  'shop.packLarge': 'Сундук кристаллов',
+  'shop.packHuge': 'Сокровищница',
+  'shop.bestValue': 'ВЫГОДНО',
+  'shop.iapNote': 'Покупки через App Store / Google Play. В тестовой сборке начисляется сразу.',
+  'shop.purchased': 'Покупка успешна!',
+  'shop.skinNote': 'Облик меняет внешний вид героя в игре.',
+
+  'skin.default': 'Выживший',
+  'skin.gigachad': 'Гигачад',
+  'skin.doge': 'Доге',
+  'skin.shrek': 'Болотный Огр',
+  'skin.amogus': 'Красный Подозреваемый',
+  'skin.pepe': 'Грустная Лягушка',
+  'skin.banana': 'Банан',
+
+  'acc.title': 'Аккаунт',
+  'acc.subtitle': 'Сохрани прогресс в облаке',
+  'acc.email': 'Email',
+  'acc.password': 'Пароль',
+  'acc.signIn': 'Войти',
+  'acc.signUp': 'Регистрация',
+  'acc.signOut': 'Выйти',
+  'acc.guest': 'Гостевой режим',
+  'acc.cloudOff': 'Облако не подключено',
+  'acc.guestDesc': 'Прогресс хранится только на этом устройстве',
+  'acc.signedInAs': 'Ты вошёл как',
+  'acc.error': 'Ошибка: {msg}',
+  'acc.notConfigured': 'Облако пока не подключено (нужны ключи Supabase). Играй в гостевом режиме — всё сохраняется локально.',
+  'acc.haveAccount': 'Уже есть аккаунт? Войти',
+  'acc.noAccount': 'Нет аккаунта? Регистрация',
+  'acc.checkEmail': 'Проверь почту и подтверди адрес',
 };
 
-const en: Partial<Table> = {
+export const en: Table = {
+  'game.title': 'ASHEN DOMINION',
+  'game.tagline': 'How many nights can you hold?',
+
   'common.back': '‹ Back',
   'common.close': 'Close',
   'common.cancel': 'Cancel',
   'common.max': 'MAX',
 
-  'menu.play': 'Start Surviving',
+  'menu.continue': 'Continue',
+  'menu.newWorld': 'New World',
+  'menu.world': 'World {n}',
+  'menu.emptySlot': 'Empty slot',
+  'menu.startNew': 'Start a new survival run',
+  'menu.night': 'Night {n}',
+  'menu.record': 'Best: {b} · {k} kills',
+  'menu.delete': 'Delete',
+  'menu.confirmDelete': 'Really delete?',
   'menu.arsenal': 'Arsenal',
   'menu.codex': 'Codex',
   'menu.settings': 'Settings',
-  'menu.bestNight': 'Best run: Night',
+  'menu.shop': 'Shop',
+  'menu.account': 'Account',
+  'menu.tagline': 'How many nights can you survive?',
 
   'settings.title': 'Settings',
   'settings.audio': 'Audio',
@@ -127,32 +283,177 @@ const en: Partial<Table> = {
   'settings.bestNight': 'Best night',
   'settings.nightsSurvived': 'Nights survived',
   'settings.zombiesKilled': 'Zombies killed',
-  'settings.deaths': 'Falls',
+  'settings.deaths': 'Deaths',
   'settings.wipe': 'Wipe all progress',
   'settings.on': 'On',
   'settings.off': 'Off',
   'settings.qualityLow': 'Low',
   'settings.qualityHigh': 'High',
 
-  'day.phase': 'DAY · Night',
-  'day.startNight': 'Start Night',
-  'day.research': 'Research',
-  'day.arsenal': 'Arsenal',
+  'lang.title': 'Choose your language',
+  'lang.subtitle': 'You can change it later in Settings',
 
-  'tutorial.welcome': 'The world has fallen. Hold your base as many nights as you can.',
-  'tutorial.build': 'Pick a building below and tap the grid to place it. Wall off the Shelter.',
-  'tutorial.craft': 'Craft ammo from resources — without it, firearms fall silent at night.',
-  'tutorial.startNight': 'Ready? Hit "Start Night".',
-  'tutorial.move': 'Move with the left joystick.',
-  'tutorial.fire': 'Tap FIRE — auto-aim finds the nearest threat.',
-  'tutorial.skip': 'Skip',
+  'phase.day': 'Day',
+  'phase.dusk': 'Dusk',
+  'phase.night': 'Night',
+  'phase.dawn': 'Dawn',
+
+  'world.day': 'Day {n}',
+  'world.build': 'Build',
+  'world.weapons': 'Weapons',
+  'world.research': 'Research',
+  'world.menu': 'Menu',
+  'world.wave': 'Wave {a}/{b} · {k} kills',
+  'world.buildTitle': 'BUILDINGS',
+  'world.dragPlace': 'Drag the building into place',
+  'world.barracksProd': 'Barracks production',
+  'world.defenders': 'Defenders: {a} / {b}',
+  'world.squadFull': 'Squad is full',
+  'world.training': 'Training in progress',
+  'world.train': 'Train: 🌿{food} ⚙️{scrap}',
+  'world.prod': 'Production — {name}',
+  'world.duskTitle': 'DUSK',
+  'world.duskSub': 'The horde is coming — arm up!',
+  'world.dawnTitle': 'DAWN',
+  'world.dawnSub': 'Night {n} survived · {k} kills',
+  'world.fellTitle': 'YOU FELL',
+  'world.fellCamp': 'The campfire died. The camp has fallen.',
+  'world.fellDark': 'The darkness took you.',
+  'world.fellStats': 'Nights held: {n}. 30% of resources lost.',
+  'world.fellKeep': 'Tech and weapons are kept.',
+  'world.ngPlus': 'Start again (NG+)',
+  'world.boss': 'BOSS',
+
+  'hud.ability': 'SKILL',
+  'hud.roll': 'ROLL',
+  'hud.fire': 'FIRE',
+  'hud.action': 'ACTION',
+  'hud.reload': 'RELOADING',
+  'hud.reserve': ' · reserve {n}',
+  'hud.melee': 'melee',
+  'hud.abilityActive': '▶ {name} {s}s',
+
+  'res.ammo': 'Ammo',
+  'res.components': 'Components',
+  'res.rations': 'Rations',
+  'res.explosives': 'Explosives',
+  'res.rockets': 'Rockets',
+
+  'tut.chop': 'Walk to a tree and press "Action" until it falls.',
+  'tut.pickup': 'Pick up the fallen log — just walk over it.',
+  'tut.carry': 'Carry the logs to the campfire in the middle to get wood.',
+  'tut.build': 'Press "Build" at the top and place a wall for the night.',
+  'tutorial.skip': 'Skip tutorial',
   'tutorial.next': 'Next',
   'tutorial.done': 'Got it',
+
+  'bup.level': 'lvl {a}/{b}',
+  'bup.upgrade': 'Upgrade: ',
+  'bup.need': 'Still needed: ',
+  'bup.close': 'Close',
+  'bup.open': 'Open',
+  'bup.doUpgrade': 'Upgrade',
+  'bup.noRes': 'Not enough resources',
+  'bup.maxNote': '★ Max level ★',
+  'bup.demolish': 'Demolish',
+
+  'arsenal.title': 'Arsenal',
+  'arsenal.primitive': '🪓 Primitive',
+  'arsenal.firearm': '🔫 Firearms',
+  'arsenal.heavy': '💣 Heavy',
+  'arsenal.locked': 'Branch locked — research "{name}" in the Tech Tree',
+  'arsenal.inHands': 'EQUIPPED',
+  'arsenal.equipped': 'Equipped',
+  'arsenal.equip': 'Equip',
+  'arsenal.upgrade': 'Upgrade: ',
+  'arsenal.price': 'Price: ',
+  'arsenal.free': 'free',
+  'arsenal.buy': 'Buy',
+  'arsenal.lvl': 'Lvl {n}',
+
+  'research.title': 'Tech Tree',
+  'research.weapons': '🔫 Weapons',
+  'research.fort': '🧱 Fortification',
+  'research.survival': '🌿 Survival',
+  'research.needCouncil': 'Build the Council in your camp to start research',
+  'research.active': '⏳ Researching: {name} — {n} days left',
+  'research.requires': '🔒 Requires: {names}',
+  'research.learn': 'Research',
+  'research.learnDays': 'Research ({n}d)',
+
+  'codex.title': 'Codex',
+  'codex.chronicle': 'Survival Chronicle',
+  'codex.bosses': 'Bosses',
+  'codex.night': 'Night {n}',
+  'codex.lockedEntry': 'The entry unlocks once you meet it — and live.',
+  'codex.horde': 'Horde',
+  'codex.unknown': 'Unknown threat. Not yet encountered.',
+  'codex.bestNight': 'Best night',
+  'codex.nights': 'Nights survived',
+  'codex.kills': 'Zombies killed',
+  'codex.deaths': 'Deaths',
+  'codex.stats': 'HP {hp} · damage {dmg} · speed {spd}',
+
+  'shop.title': 'Shop',
+  'shop.crystals': 'Crystals',
+  'shop.daily': 'Daily Freebie',
+  'shop.dailyDesc': 'A free gift every day. Grab it!',
+  'shop.claim': 'Claim',
+  'shop.claimed': 'Claimed — come back tomorrow',
+  'shop.premium': 'Premium Weapons',
+  'shop.skins': 'Meme Skins',
+  'shop.owned': 'OWNED',
+  'shop.equip': 'Equip',
+  'shop.equipped': 'EQUIPPED',
+  'shop.unequip': 'Unequip',
+  'shop.buy': 'Buy',
+  'shop.notEnough': 'Not enough crystals',
+  'shop.packSmall': 'Handful of Crystals',
+  'shop.packMedium': 'Bag of Crystals',
+  'shop.packLarge': 'Chest of Crystals',
+  'shop.packHuge': 'Royal Treasury',
+  'shop.bestValue': 'BEST VALUE',
+  'shop.iapNote': 'Purchases go through App Store / Google Play. In test builds they are granted instantly.',
+  'shop.purchased': 'Purchase successful!',
+  'shop.skinNote': 'A skin changes how your hero looks in the game.',
+
+  'skin.default': 'Survivor',
+  'skin.gigachad': 'Gigachad',
+  'skin.doge': 'Doge',
+  'skin.shrek': 'Swamp Ogre',
+  'skin.amogus': 'Red Impostor',
+  'skin.pepe': 'Sad Frog',
+  'skin.banana': 'Banana',
+
+  'acc.title': 'Account',
+  'acc.subtitle': 'Save your progress in the cloud',
+  'acc.email': 'Email',
+  'acc.password': 'Password',
+  'acc.signIn': 'Sign in',
+  'acc.signUp': 'Sign up',
+  'acc.signOut': 'Sign out',
+  'acc.guest': 'Guest mode',
+  'acc.cloudOff': 'Cloud not connected',
+  'acc.guestDesc': 'Progress is stored only on this device',
+  'acc.signedInAs': 'Signed in as',
+  'acc.error': 'Error: {msg}',
+  'acc.notConfigured': 'Cloud is not connected yet (Supabase keys needed). Play in guest mode — everything saves locally.',
+  'acc.haveAccount': 'Already have an account? Sign in',
+  'acc.noAccount': 'No account? Sign up',
+  'acc.checkEmail': 'Check your inbox and confirm your address',
 };
 
-const TABLES: Record<Language, Partial<Table>> = { ru, en };
+const TABLES: Partial<Record<Language, Table>> = { ru, en, ...LOCALE_TABLES };
 
-/** Resolve a key for a language, falling back to RU then the key itself. */
-export function translate(lang: Language, key: StringKey): string {
-  return TABLES[lang]?.[key] ?? ru[key] ?? key;
+/** Resolve a key, falling back EN → RU → the key itself. */
+export function translate(lang: Language, key: StringKey, vars?: Record<string, string | number>): string {
+  let s = TABLES[lang]?.[key] ?? en[key] ?? ru[key] ?? key;
+  if (vars) for (const [k, v] of Object.entries(vars)) s = s.split(`{${k}}`).join(String(v));
+  return s;
+}
+
+/** Translate a content NAME by id (`w.ak`, `b.wall`, `r.gunpowder`, `e.runner`). */
+export function translateName(lang: Language, kind: string, id: string, fallback: string): string {
+  const key = `${kind}.${id}`;
+  return TABLES[lang]?.[key] ?? (lang === 'ru' ? fallback : en[key] ?? fallback);
 }
